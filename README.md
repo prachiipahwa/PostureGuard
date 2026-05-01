@@ -1,7 +1,7 @@
 # 🦾 PostureGuard AI — Real-Time Ergonomic Coach
 
 **Computer Vision Capstone Project**  
-Domain: Fitness & Workplace Wellness  
+Domain: Healthcare & Workplace Wellness  
 Tech: MediaPipe Pose · OpenCV · Flask · Python
 
 ---
