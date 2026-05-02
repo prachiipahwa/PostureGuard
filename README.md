@@ -22,8 +22,7 @@ It produces a **0–100 posture score** (EMA-smoothed), live visual skeleton ove
 ---
 ## Live Demo
 
-<video src="demo.mp4" width="100%" controls="controls" autoplay loop muted>
-</video>
+[Click to watch](./demo.mp4)
 
 ---
 ## Quick Start
