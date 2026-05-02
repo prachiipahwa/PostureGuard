@@ -20,7 +20,11 @@ PostureGuard AI uses your webcam and **MediaPipe Pose** landmark detection to an
 It produces a **0–100 posture score** (EMA-smoothed), live visual skeleton overlay, actionable fix instructions, and session statistics.
 
 ---
+##Live Demo
+<video src="demo.mp4" width="100%" controls="controls" autoplay loop muted>
+</video>
 
+---
 ## Quick Start
 
 ### Option A — Web Dashboard (recommended for demo)
