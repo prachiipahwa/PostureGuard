@@ -2,3 +2,5 @@ mediapipe==0.10.14
 opencv-python==4.10.0.84
 numpy>=1.24.0
 flask>=3.0.0
+reportlab>=4.0.0
+requests>=2.31.0

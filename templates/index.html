@@ -3,1312 +3,1650 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>PostureGuard AI — Ergonomic Coach</title>
+<title>PostureGuard AI v2</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
 <style>
-  /* ── Reset & Variables ─────────────────────────────────────────── */
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-  :root {
-    --bg:        #080c10;
-    --bg2:       #0d1117;
-    --bg3:       #111820;
-    --border:    #1e2d3d;
-    --accent:    #00e5b0;
-    --accent2:   #0af;
-    --warn:      #ffb020;
-    --danger:    #ff3c5c;
-    --text:      #e8f0f8;
-    --muted:     #5a7a96;
-    --card:      #0d1520;
-
-    --good:   #00e5b0;
-    --medium: #ffb020;
-    --bad:    #ff3c5c;
-
-    --r: 12px;
-    --glow: 0 0 30px rgba(0,229,176,0.15);
-  }
-
-  html, body {
-    background: var(--bg);
-    color: var(--text);
-    font-family: 'Syne', sans-serif;
-    min-height: 100vh;
-    overflow-x: hidden;
-  }
-
-  /* ── Noise texture overlay ─────────────────────────────────────── */
-  body::before {
-    content: '';
-    position: fixed; inset: 0; z-index: 0; pointer-events: none;
-    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
-    opacity: 0.4;
-  }
-
-  /* ── Grid scan line ────────────────────────────────────────────── */
-  body::after {
-    content: '';
-    position: fixed; inset: 0; z-index: 0; pointer-events: none;
-    background: repeating-linear-gradient(
-      0deg,
-      transparent,
-      transparent 2px,
-      rgba(0,229,176,0.012) 2px,
-      rgba(0,229,176,0.012) 4px
-    );
-  }
-
-  /* ── Layout ────────────────────────────────────────────────────── */
-  .app {
-    position: relative; z-index: 1;
-    max-width: 1400px;
-    margin: 0 auto;
-    padding: 0 24px 40px;
-  }
-
-  /* ── Header ────────────────────────────────────────────────────── */
-  header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 24px 0 20px;
-    border-bottom: 1px solid var(--border);
-    margin-bottom: 28px;
-  }
-
-  .logo {
-    display: flex;
-    align-items: center;
-    gap: 14px;
-  }
-
-  .logo-icon {
-    width: 44px; height: 44px;
-    background: linear-gradient(135deg, var(--accent), var(--accent2));
-    border-radius: 10px;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 22px;
-    box-shadow: var(--glow);
-    flex-shrink: 0;
-  }
-
-  .logo-text h1 {
-    font-size: 1.35rem;
-    font-weight: 800;
-    letter-spacing: -0.02em;
-    color: var(--text);
-    line-height: 1;
-  }
-
-  .logo-text span {
-    font-size: 0.72rem;
-    color: var(--muted);
-    font-family: 'Space Mono', monospace;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-  }
-
-  .status-chip {
-    display: flex; align-items: center; gap: 8px;
-    font-family: 'Space Mono', monospace;
-    font-size: 0.72rem;
-    color: var(--muted);
-    background: var(--bg3);
-    border: 1px solid var(--border);
-    border-radius: 20px;
-    padding: 6px 14px;
-  }
-
-  .dot {
-    width: 7px; height: 7px;
-    border-radius: 50%;
-    background: var(--muted);
-    transition: background 0.4s;
-  }
-  .dot.active { background: var(--good); box-shadow: 0 0 8px var(--good); animation: pulse 2s infinite; }
-
-  @keyframes pulse {
-    0%, 100% { opacity: 1; } 50% { opacity: 0.4; }
-  }
-
-  /* ── Main grid ─────────────────────────────────────────────────── */
-  .main-grid {
-    display: grid;
-    grid-template-columns: 1fr 340px;
-    grid-template-rows: auto auto;
-    gap: 20px;
-  }
-
-  @media (max-width: 1000px) {
-    .main-grid { grid-template-columns: 1fr; }
-  }
-
-  /* ── Card base ─────────────────────────────────────────────────── */
-  .card {
-    background: var(--card);
-    border: 1px solid var(--border);
-    border-radius: var(--r);
-    padding: 20px;
-    position: relative;
-    overflow: hidden;
-  }
-
-  .card::before {
-    content: '';
-    position: absolute;
-    top: 0; left: 0; right: 0;
-    height: 1px;
-    background: linear-gradient(90deg, transparent, rgba(0,229,176,0.3), transparent);
-  }
-
-  .card-label {
-    font-family: 'Space Mono', monospace;
-    font-size: 0.65rem;
-    text-transform: uppercase;
-    letter-spacing: 0.12em;
-    color: var(--muted);
-    margin-bottom: 14px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-
-  .card-label::before {
-    content: '';
-    width: 3px; height: 3px;
-    border-radius: 50%;
-    background: var(--accent);
-  }
-
-  /* ── Camera view ───────────────────────────────────────────────── */
-  .camera-card {
-    grid-row: 1 / 3;
-  }
-
-  .camera-wrap {
-    position: relative;
-    background: #000;
-    border-radius: 8px;
-    overflow: hidden;
-    aspect-ratio: 4/3;
-    width: 100%;
-  }
-
-  #videoEl {
-    width: 100%; height: 100%;
-    object-fit: cover;
-    display: block;
-    transform: scaleX(-1);   /* mirror */
-  }
-
-  #skeletonCanvas {
-    position: absolute; inset: 0;
-    width: 100%; height: 100%;
-    pointer-events: none;
-    transform: scaleX(-1);
-  }
-
-  .camera-overlay-corners {
-    position: absolute; inset: 0;
-    pointer-events: none;
-  }
-
-  .corner {
-    position: absolute;
-    width: 20px; height: 20px;
-    border-color: var(--accent);
-    border-style: solid;
-    opacity: 0.7;
-  }
-  .corner.tl { top:10px;left:10px; border-width:2px 0 0 2px; }
-  .corner.tr { top:10px;right:10px; border-width:2px 2px 0 0; }
-  .corner.bl { bottom:10px;left:10px; border-width:0 0 2px 2px; }
-  .corner.br { bottom:10px;right:10px; border-width:0 2px 2px 0; }
-
-  .no-cam-msg {
-    position: absolute; inset: 0;
-    display: flex; flex-direction: column;
-    align-items: center; justify-content: center;
-    gap: 12px; color: var(--muted);
-    font-size: 0.9rem;
-  }
-
-  .no-cam-msg .icon { font-size: 3rem; opacity: 0.3; }
-
-  /* ── Score display ─────────────────────────────────────────────── */
-  .score-row {
-    display: flex;
-    align-items: center;
-    gap: 20px;
-    margin-top: 18px;
-  }
-
-  .score-ring {
-    position: relative;
-    width: 90px; height: 90px;
-    flex-shrink: 0;
-  }
-
-  #scoreRingSvg { width: 100%; height: 100%; transform: rotate(-90deg); }
-
-  #scoreRingBg {
-    fill: none; stroke: var(--bg3);
-    stroke-width: 6;
-    cx: 45; cy: 45; r: 36;
-  }
-
-  #scoreRingFill {
-    fill: none; stroke: var(--good);
-    stroke-width: 6;
-    stroke-linecap: round;
-    cx: 45; cy: 45; r: 36;
-    stroke-dasharray: 226;
-    stroke-dashoffset: 226;
-    transition: stroke-dashoffset 0.5s ease, stroke 0.5s ease;
-  }
-
-  .score-num {
-    position: absolute; inset: 0;
-    display: flex; flex-direction: column;
-    align-items: center; justify-content: center;
-    font-size: 1.6rem;
-    font-weight: 800;
-    line-height: 1;
-    color: var(--text);
-    transform: none;
-  }
-
-  .score-num small {
-    font-size: 0.5rem;
-    color: var(--muted);
-    font-family: 'Space Mono', monospace;
-    font-weight: 400;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    margin-top: 2px;
-  }
-
-  .score-info {
-    flex: 1;
-  }
-
-  .posture-label {
-    font-size: 1.05rem;
-    font-weight: 700;
-    letter-spacing: 0.02em;
-    color: var(--good);
-    transition: color 0.4s;
-  }
-
-  .score-sub {
-    font-size: 0.78rem;
-    color: var(--muted);
-    margin-top: 4px;
-    font-family: 'Space Mono', monospace;
-    line-height: 1.5;
-  }
-
-  /* ── Metrics bars ──────────────────────────────────────────────── */
-  .metrics-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 12px;
-    margin-top: 4px;
-  }
-
-  .metric-item {
-    background: var(--bg3);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 12px;
-  }
-
-  .metric-name {
-    font-size: 0.68rem;
-    color: var(--muted);
-    font-family: 'Space Mono', monospace;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    margin-bottom: 6px;
-  }
-
-  .metric-val {
-    font-size: 1.4rem;
-    font-weight: 700;
-    color: var(--text);
-    line-height: 1;
-  }
-
-  .metric-val span {
-    font-size: 0.7rem;
-    font-weight: 400;
-    color: var(--muted);
-    margin-left: 2px;
-  }
-
-  .metric-bar-wrap {
-    margin-top: 8px;
-    height: 4px;
-    background: var(--bg2);
-    border-radius: 2px;
-    overflow: hidden;
-  }
-
-  .metric-bar {
-    height: 100%;
-    border-radius: 2px;
-    background: var(--good);
-    transition: width 0.4s ease, background 0.4s;
-    width: 0%;
-  }
-
-  /* ── Issues panel ──────────────────────────────────────────────── */
-  #issuesList {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    min-height: 60px;
-  }
-
-  .issue-item {
-    display: flex;
-    align-items: flex-start;
-    gap: 10px;
-    background: var(--bg3);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 10px 12px;
-    animation: slideIn 0.3s ease;
-  }
-
-  @keyframes slideIn {
-    from { opacity: 0; transform: translateX(-8px); }
-    to   { opacity: 1; transform: translateX(0); }
-  }
-
-  .issue-sev {
-    font-size: 0.58rem;
-    font-family: 'Space Mono', monospace;
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
-    padding: 2px 6px;
-    border-radius: 4px;
-    flex-shrink: 0;
-    margin-top: 1px;
-  }
-
-  .sev-HIGH    { background: rgba(255,60,92,0.15); color: var(--bad); border: 1px solid rgba(255,60,92,0.3); }
-  .sev-MODERATE{ background: rgba(255,176,32,0.12); color: var(--warn); border: 1px solid rgba(255,176,32,0.3); }
-  .sev-LOW     { background: rgba(0,170,255,0.1); color: var(--accent2); border: 1px solid rgba(0,170,255,0.3); }
-
-  .issue-body {}
-
-  .issue-name {
-    font-size: 0.82rem;
-    font-weight: 700;
-    color: var(--text);
-    margin-bottom: 2px;
-  }
-
-  .issue-fix {
-    font-size: 0.72rem;
-    color: var(--muted);
-    font-family: 'Space Mono', monospace;
-    line-height: 1.4;
-  }
-
-  .no-issues {
-    display: flex; align-items: center; gap: 10px;
-    color: var(--good);
-    font-size: 0.85rem;
-    padding: 10px;
-  }
-
-  .no-issues::before { content: '✓'; font-size: 1.1rem; }
-
-  /* ── Chart ─────────────────────────────────────────────────────── */
-  .chart-wrap {
-    height: 100px;
-    position: relative;
-  }
-
-  #scoreChartCanvas {
-    width: 100%; height: 100%;
-  }
-
-  /* ── Session stats ─────────────────────────────────────────────── */
-  .stats-row {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 10px;
-  }
-
-  .stat-item {
-    background: var(--bg3);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 12px;
-    text-align: center;
-  }
-
-  .stat-val {
-    font-size: 1.4rem;
-    font-weight: 800;
-    color: var(--text);
-  }
-
-  .stat-label {
-    font-size: 0.62rem;
-    color: var(--muted);
-    font-family: 'Space Mono', monospace;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    margin-top: 2px;
-  }
-
-  /* ── Bottom bar ────────────────────────────────────────────────── */
-  .bottom-row {
-    grid-column: 1 / -1;
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 20px;
-    margin-top: 0;
-  }
-
-  @media (max-width: 700px) {
-    .bottom-row { grid-template-columns: 1fr; }
-    .metrics-grid { grid-template-columns: 1fr; }
-  }
-
-  /* ── Buttons ───────────────────────────────────────────────────── */
-  .btn {
-    display: inline-flex; align-items: center; gap: 8px;
-    padding: 10px 20px;
-    border-radius: 8px;
-    font-family: 'Syne', sans-serif;
-    font-size: 0.82rem;
-    font-weight: 700;
-    cursor: pointer;
-    border: none;
-    transition: all 0.2s;
-    letter-spacing: 0.02em;
-  }
-
-  .btn-primary {
-    background: linear-gradient(135deg, var(--accent), var(--accent2));
-    color: #000;
-    box-shadow: 0 0 20px rgba(0,229,176,0.25);
-  }
-  .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 0 30px rgba(0,229,176,0.4); }
-
-  .btn-outline {
-    background: transparent;
-    color: var(--muted);
-    border: 1px solid var(--border);
-  }
-  .btn-outline:hover { border-color: var(--accent); color: var(--accent); }
-
-  .btn-row {
-    display: flex; gap: 10px; flex-wrap: wrap;
-    margin-top: 14px;
-  }
-
-  /* ── Tips carousel ─────────────────────────────────────────────── */
-  .tip-card {
-    background: linear-gradient(135deg, rgba(0,229,176,0.06), rgba(0,170,255,0.04));
-    border: 1px solid rgba(0,229,176,0.15);
-    border-radius: 8px;
-    padding: 14px;
-    margin-top: 12px;
-    font-size: 0.8rem;
-    color: var(--text);
-    line-height: 1.6;
-    transition: opacity 0.4s;
-  }
-
-  .tip-label {
-    font-family: 'Space Mono', monospace;
-    font-size: 0.6rem;
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
-    color: var(--accent);
-    margin-bottom: 6px;
-    display: flex; align-items: center; gap: 6px;
-  }
-
-  /* ── Scan animation on camera ──────────────────────────────────── */
-  .scan-line {
-    position: absolute;
-    left: 0; right: 0;
-    height: 2px;
-    background: linear-gradient(90deg, transparent, var(--accent), transparent);
-    opacity: 0;
-    pointer-events: none;
-    animation: scan 3s linear infinite;
-  }
-
-  @keyframes scan {
-    0%   { top: 0%;   opacity: 0; }
-    5%   { opacity: 0.6; }
-    95%  { opacity: 0.6; }
-    100% { top: 100%; opacity: 0; }
-  }
-
-  /* ── Pose guide modal ──────────────────────────────────────────── */
-  .modal-backdrop {
-    position: fixed; inset: 0;
-    background: rgba(0,0,0,0.8);
-    z-index: 100;
-    display: none;
-    align-items: center;
-    justify-content: center;
-    backdrop-filter: blur(4px);
-  }
-  .modal-backdrop.open { display: flex; }
-
-  .modal {
-    background: var(--bg2);
-    border: 1px solid var(--border);
-    border-radius: 16px;
-    padding: 28px;
-    max-width: 560px;
-    width: 90%;
-    position: relative;
-  }
-
-  .modal h2 {
-    font-size: 1.2rem;
-    font-weight: 800;
-    margin-bottom: 16px;
-    color: var(--accent);
-  }
-
-  .pose-tips {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 10px;
-    margin-bottom: 20px;
-  }
-
-  .pose-tip-item {
-    background: var(--bg3);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 12px;
-  }
-
-  .pose-tip-item .icon { font-size: 1.5rem; margin-bottom: 6px; }
-  .pose-tip-item h4 { font-size: 0.82rem; font-weight: 700; margin-bottom: 4px; }
-  .pose-tip-item p { font-size: 0.72rem; color: var(--muted); line-height: 1.4; }
-
-  .modal-close {
-    position: absolute; top: 16px; right: 16px;
-    background: var(--bg3); border: 1px solid var(--border);
-    border-radius: 6px; padding: 4px 10px;
-    cursor: pointer; color: var(--muted); font-size: 0.8rem;
-  }
-  .modal-close:hover { color: var(--text); border-color: var(--accent); }
-
-  /* ── Footer ────────────────────────────────────────────────────── */
-  footer {
-    text-align: center;
-    margin-top: 32px;
-    padding-top: 20px;
-    border-top: 1px solid var(--border);
-    font-family: 'Space Mono', monospace;
-    font-size: 0.62rem;
-    color: var(--muted);
-    letter-spacing: 0.06em;
-  }
-
-  footer strong { color: var(--accent); }
-
-  /* ── Scrollbar ─────────────────────────────────────────────────── */
-  ::-webkit-scrollbar { width: 6px; }
-  ::-webkit-scrollbar-track { background: var(--bg); }
-  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
-  ::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#060a0e;--bg2:#0b1118;--bg3:#0f1822;--border:#1a2b3c;
+  --accent:#00e5b0;--accent2:#00aaff;--warn:#ffb020;--danger:#ff3c5c;
+  --text:#ddeeff;--muted:#4a6a86;--card:#0a1520;
+  --good:#00e5b0;--med:#ffb020;--bad:#ff3c5c;--r:12px;
+}
+html,body{background:var(--bg);color:var(--text);font-family:'Syne',sans-serif;min-height:100vh;overflow-x:hidden}
+body::after{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;
+  background:repeating-linear-gradient(0deg,transparent,transparent 3px,rgba(0,229,176,.007) 3px,rgba(0,229,176,.007) 6px)}
+
+/* ── Layout ── */
+.app{position:relative;z-index:1;display:flex;min-height:100vh}
+
+/* ── Sidebar ── */
+.sidebar{width:220px;flex-shrink:0;background:var(--bg2);border-right:1px solid var(--border);
+  display:flex;flex-direction:column;padding:0;position:sticky;top:0;height:100vh;overflow-y:auto}
+.sidebar-logo{padding:20px 18px 16px;border-bottom:1px solid var(--border)}
+.sidebar-logo h1{font-size:1.1rem;font-weight:800;color:var(--accent);letter-spacing:-.02em}
+.sidebar-logo small{font-size:.6rem;color:var(--muted);font-family:'Space Mono',monospace;letter-spacing:.08em;text-transform:uppercase}
+.sidebar-section{padding:12px 10px 4px;font-size:.58rem;font-family:'Space Mono',monospace;
+  color:var(--muted);text-transform:uppercase;letter-spacing:.12em}
+.nav-item{display:flex;align-items:center;gap:9px;padding:9px 14px;margin:1px 6px;
+  border-radius:8px;cursor:pointer;font-size:.82rem;font-weight:600;color:var(--muted);
+  transition:all .15s;border:none;background:none;width:calc(100% - 12px);text-align:left}
+.nav-item:hover{background:var(--bg3);color:var(--text)}
+.nav-item.active{background:rgba(0,229,176,.1);color:var(--accent);border:1px solid rgba(0,229,176,.15)}
+.nav-icon{font-size:14px;width:16px;text-align:center;flex-shrink:0}
+.sidebar-footer{margin-top:auto;padding:14px 10px;border-top:1px solid var(--border)}
+
+/* Profile switcher in sidebar */
+.profile-chip{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:8px;
+  cursor:pointer;background:var(--bg3);border:1px solid var(--border);margin:6px;transition:border-color .2s}
+.profile-chip:hover{border-color:var(--accent)}
+.avatar{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+  font-size:.7rem;font-weight:700;color:#fff;flex-shrink:0}
+.profile-name{font-size:.78rem;font-weight:700;color:var(--text);flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.profile-mode{font-size:.6rem;color:var(--muted);font-family:'Space Mono',monospace}
+
+/* ── Main ── */
+.main{flex:1;display:flex;flex-direction:column;min-width:0}
+.topbar{display:flex;align-items:center;justify-content:space-between;
+  padding:14px 24px;border-bottom:1px solid var(--border);background:var(--bg2);position:sticky;top:0;z-index:10}
+.topbar-title{font-size:1rem;font-weight:700;color:var(--text)}
+.topbar-right{display:flex;align-items:center;gap:10px}
+.status-chip{display:flex;align-items:center;gap:7px;font-family:'Space Mono',monospace;
+  font-size:.65rem;color:var(--muted);background:var(--bg3);border:1px solid var(--border);
+  border-radius:20px;padding:5px 11px}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--muted);transition:background .4s;flex-shrink:0}
+.dot.live{background:var(--good);box-shadow:0 0 7px var(--good);animation:blink 2s infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+
+.content{padding:20px 24px;flex:1}
+
+/* ── Panels (pages) ── */
+.panel{display:none}
+.panel.active{display:block}
+
+/* ── Cards ── */
+.card{background:var(--card);border:1px solid var(--border);border-radius:var(--r);
+  padding:18px;position:relative;overflow:hidden;margin-bottom:16px}
+.card::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;
+  background:linear-gradient(90deg,transparent,rgba(0,229,176,.2),transparent)}
+.clabel{font-family:'Space Mono',monospace;font-size:.6rem;text-transform:uppercase;
+  letter-spacing:.12em;color:var(--muted);margin-bottom:12px;display:flex;align-items:center;gap:7px}
+.clabel::before{content:'';width:3px;height:3px;border-radius:50%;background:var(--accent);flex-shrink:0}
+
+/* ── Buttons ── */
+.btn{display:inline-flex;align-items:center;gap:7px;padding:8px 16px;border-radius:8px;
+  font-family:'Syne',sans-serif;font-size:.78rem;font-weight:700;cursor:pointer;border:none;
+  transition:all .18s;letter-spacing:.02em}
+.btn-p{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#000;box-shadow:0 0 16px rgba(0,229,176,.18)}
+.btn-p:hover{transform:translateY(-1px);box-shadow:0 0 24px rgba(0,229,176,.3)}
+.btn-o{background:transparent;color:var(--muted);border:1px solid var(--border)}
+.btn-o:hover{border-color:var(--accent);color:var(--accent)}
+.btn-sm{padding:5px 11px;font-size:.7rem}
+.btn-danger{background:rgba(255,60,92,.12);color:var(--bad);border:1px solid rgba(255,60,92,.25)}
+.btn-danger:hover{background:rgba(255,60,92,.2)}
+.btn-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+
+/* ── Grid helpers ── */
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+@media(max-width:900px){.grid-2{grid-template-columns:1fr}.grid-4{grid-template-columns:1fr 1fr}}
+
+/* ── Camera ── */
+.cam-wrap{position:relative;background:#000;border-radius:8px;overflow:hidden;aspect-ratio:4/3}
+#vid{width:100%;height:100%;object-fit:cover;display:block;transform:scaleX(-1)}
+#skelCanvas{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;transform:scaleX(-1)}
+.corners{position:absolute;inset:0;pointer-events:none}
+.c{position:absolute;width:16px;height:16px;border-color:var(--accent);border-style:solid;opacity:.55}
+.c.tl{top:8px;left:8px;border-width:2px 0 0 2px}.c.tr{top:8px;right:8px;border-width:2px 2px 0 0}
+.c.bl{bottom:8px;left:8px;border-width:0 0 2px 2px}.c.br{bottom:8px;right:8px;border-width:0 2px 2px 0}
+.scan{position:absolute;left:0;right:0;height:2px;
+  background:linear-gradient(90deg,transparent,var(--accent),transparent);
+  opacity:0;animation:scan 3s linear infinite;pointer-events:none;display:none}
+@keyframes scan{0%{top:0;opacity:0}5%{opacity:.45}95%{opacity:.45}100%{top:100%;opacity:0}}
+.no-cam{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;
+  justify-content:center;gap:8px;color:var(--muted);font-size:.82rem;text-align:center;padding:20px}
+.no-cam-ico{font-size:2.8rem;opacity:.2;margin-bottom:4px}
+
+/* ── Score ring ── */
+.score-row{display:flex;align-items:center;gap:16px;margin-top:14px}
+.ring-wrap{position:relative;width:82px;height:82px;flex-shrink:0}
+#ringSvg{width:100%;height:100%;transform:rotate(-90deg)}
+.ring-num{position:absolute;inset:0;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;font-size:1.5rem;font-weight:800;line-height:1;color:var(--text)}
+.ring-num small{font-size:.42rem;color:var(--muted);font-family:'Space Mono',monospace;
+  text-transform:uppercase;letter-spacing:.1em;margin-top:2px}
+.posture-label{font-size:.95rem;font-weight:700;color:var(--good);transition:color .4s}
+.score-sub{font-size:.7rem;color:var(--muted);margin-top:3px;font-family:'Space Mono',monospace;line-height:1.5}
+
+/* ── Metrics ── */
+.met-item{background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:11px}
+.met-name{font-size:.6rem;color:var(--muted);font-family:'Space Mono',monospace;
+  text-transform:uppercase;letter-spacing:.08em;margin-bottom:5px}
+.met-val{font-size:1.3rem;font-weight:700;color:var(--text);line-height:1}
+.met-val span{font-size:.62rem;font-weight:400;color:var(--muted);margin-left:1px}
+.bar-wrap{margin-top:7px;height:4px;background:var(--bg2);border-radius:2px;overflow:hidden}
+.bar{height:100%;border-radius:2px;background:var(--good);transition:width .4s,background .4s;width:0}
+
+/* ── Issues ── */
+.issue{display:flex;align-items:flex-start;gap:9px;background:var(--bg3);
+  border:1px solid var(--border);border-radius:8px;padding:9px 11px;margin-bottom:7px;
+  animation:si .25s ease}
+@keyframes si{from{opacity:0;transform:translateX(-5px)}to{opacity:1;transform:none}}
+.sev{font-size:.55rem;font-family:'Space Mono',monospace;text-transform:uppercase;
+  letter-spacing:.1em;padding:2px 5px;border-radius:4px;flex-shrink:0;margin-top:1px}
+.HIGH{background:rgba(255,60,92,.12);color:var(--bad);border:1px solid rgba(255,60,92,.22)}
+.MODERATE{background:rgba(255,176,32,.1);color:var(--warn);border:1px solid rgba(255,176,32,.22)}
+.LOW{background:rgba(0,170,255,.08);color:var(--accent2);border:1px solid rgba(0,170,255,.18)}
+.issue-name{font-size:.78rem;font-weight:700;margin-bottom:2px}
+.issue-fix{font-size:.67rem;color:var(--muted);font-family:'Space Mono',monospace;line-height:1.4}
+.ok-msg{display:flex;align-items:center;gap:8px;color:var(--good);font-size:.8rem;padding:8px}
+.ok-msg::before{content:'✓';font-size:1rem}
+
+/* ── Chart ── */
+.chart-wrap{height:86px;position:relative}
+#chartCvs,#trendCvs{width:100%;height:100%}
+
+/* ── Session stats ── */
+.stat{background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:10px;text-align:center}
+.stat-v{font-size:1.25rem;font-weight:800}
+.stat-l{font-size:.58rem;color:var(--muted);font-family:'Space Mono',monospace;
+  text-transform:uppercase;letter-spacing:.08em;margin-top:2px}
+
+/* ── Alert toast ── */
+.alert-toast{position:fixed;bottom:24px;right:24px;z-index:1000;
+  background:var(--bg2);border:1px solid var(--border);border-radius:12px;
+  padding:14px 18px;max-width:320px;box-shadow:0 8px 32px rgba(0,0,0,.5);
+  transform:translateY(20px);opacity:0;transition:all .3s;pointer-events:none}
+.alert-toast.show{transform:translateY(0);opacity:1;pointer-events:auto}
+.alert-toast-title{font-size:.8rem;font-weight:700;margin-bottom:4px}
+.alert-toast-msg{font-size:.72rem;color:var(--muted);line-height:1.5;font-family:'Space Mono',monospace}
+.alert-toast-close{position:absolute;top:8px;right:10px;background:none;border:none;
+  color:var(--muted);cursor:pointer;font-size:.8rem}
+
+/* ── Break progress bar ── */
+.break-bar-wrap{height:3px;background:var(--bg3);border-radius:2px;overflow:hidden;margin-top:6px}
+.break-bar{height:100%;background:linear-gradient(90deg,var(--accent),var(--accent2));
+  border-radius:2px;transition:width 1s linear;width:0}
+
+/* ── Streak display ── */
+.streak-display{display:flex;align-items:center;gap:12px;padding:14px;
+  background:linear-gradient(135deg,rgba(0,229,176,.06),rgba(0,170,255,.04));
+  border:1px solid rgba(0,229,176,.15);border-radius:10px;margin-bottom:14px}
+.streak-num{font-size:2.5rem;font-weight:800;color:var(--accent);line-height:1;flex-shrink:0}
+.streak-label{font-size:.72rem;color:var(--muted);font-family:'Space Mono',monospace;
+  text-transform:uppercase;letter-spacing:.08em;margin-bottom:2px}
+.streak-sub{font-size:.8rem;color:var(--text)}
+
+/* ── Milestones ── */
+.milestone{display:flex;align-items:center;gap:12px;padding:11px 13px;
+  background:var(--bg3);border:1px solid var(--border);border-radius:8px;margin-bottom:8px;
+  transition:border-color .2s}
+.milestone.unlocked{border-color:rgba(0,229,176,.25);background:rgba(0,229,176,.04)}
+.milestone-icon{width:32px;height:32px;border-radius:8px;display:flex;align-items:center;
+  justify-content:center;font-size:16px;flex-shrink:0;
+  background:var(--bg2);border:1px solid var(--border)}
+.milestone.unlocked .milestone-icon{background:rgba(0,229,176,.1);border-color:rgba(0,229,176,.25)}
+.milestone-name{font-size:.8rem;font-weight:700;color:var(--text)}
+.milestone-desc{font-size:.68rem;color:var(--muted);margin-top:1px}
+.milestone-badge{margin-left:auto;font-size:.58rem;font-family:'Space Mono',monospace;
+  padding:2px 7px;border-radius:4px;flex-shrink:0}
+.milestone.unlocked .milestone-badge{background:rgba(0,229,176,.12);color:var(--accent);border:1px solid rgba(0,229,176,.2)}
+.milestone:not(.unlocked) .milestone-badge{background:var(--bg2);color:var(--muted);border:1px solid var(--border)}
+
+/* ── Mode toggle ── */
+.mode-toggle{display:flex;gap:0;border:1px solid var(--border);border-radius:8px;overflow:hidden;width:fit-content}
+.mode-btn{padding:7px 14px;font-size:.72rem;font-weight:700;font-family:'Syne',sans-serif;
+  cursor:pointer;border:none;background:transparent;color:var(--muted);transition:all .2s}
+.mode-btn.active{background:var(--accent);color:#000}
+
+/* ── Calibration wizard ── */
+.cal-step{background:var(--bg3);border:1px solid var(--border);border-radius:10px;
+  padding:16px;margin-bottom:10px;transition:border-color .3s}
+.cal-step.active-step{border-color:var(--accent);background:rgba(0,229,176,.04)}
+.cal-step.done-step{border-color:rgba(0,229,176,.2);opacity:.7}
+.cal-step-num{font-size:.6rem;font-family:'Space Mono',monospace;color:var(--muted);margin-bottom:4px}
+.cal-step-name{font-size:.88rem;font-weight:700;color:var(--text);margin-bottom:3px}
+.cal-step-cue{font-size:.72rem;color:var(--muted);line-height:1.5;font-family:'Space Mono',monospace}
+.cal-progress{height:4px;background:var(--bg2);border-radius:2px;overflow:hidden;margin-top:8px}
+.cal-bar{height:100%;background:var(--accent);border-radius:2px;transition:width .2s}
+
+/* ── 7-day plan ── */
+.day-card{background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:10px}
+.day-num{font-size:.58rem;font-family:'Space Mono',monospace;color:var(--accent);
+  text-transform:uppercase;letter-spacing:.1em;margin-bottom:4px}
+.day-theme{font-size:.92rem;font-weight:700;color:var(--text);margin-bottom:8px}
+.day-item{display:flex;gap:9px;margin-bottom:6px;font-size:.75rem;line-height:1.5}
+.day-item-lbl{font-weight:700;color:var(--muted);width:52px;flex-shrink:0;
+  font-family:'Space Mono',monospace;font-size:.62rem;padding-top:1px;text-transform:uppercase}
+.day-item-val{color:var(--text)}
+
+/* ── Challenges ── */
+.room-display{font-size:2rem;font-weight:800;letter-spacing:.15em;color:var(--accent);
+  font-family:'Space Mono',monospace;text-align:center;padding:16px;
+  background:var(--bg3);border:1px solid rgba(0,229,176,.2);border-radius:10px;margin:10px 0}
+.leaderboard-row{display:flex;align-items:center;gap:12px;padding:10px 12px;
+  background:var(--bg3);border:1px solid var(--border);border-radius:8px;margin-bottom:7px}
+.lb-rank{font-size:1rem;font-weight:800;width:24px;flex-shrink:0}
+.lb-name{flex:1;font-size:.82rem;font-weight:700}
+.lb-score{font-size:1rem;font-weight:800;font-family:'Space Mono',monospace}
+.lb-samples{font-size:.65rem;color:var(--muted);font-family:'Space Mono',monospace}
+.rank-1{color:var(--warn)}
+.rank-2{color:var(--muted)}
+.rank-3{color:var(--accent2)}
+
+/* ── Voice toggle ── */
+.voice-chip{display:flex;align-items:center;gap:8px;padding:6px 12px;
+  background:var(--bg3);border:1px solid var(--border);border-radius:20px;
+  cursor:pointer;font-size:.72rem;color:var(--muted);transition:all .2s;width:fit-content}
+.voice-chip.on{border-color:rgba(0,229,176,.3);color:var(--accent);background:rgba(0,229,176,.06)}
+.voice-dot{width:6px;height:6px;border-radius:50%;background:var(--muted);transition:background .3s}
+.voice-chip.on .voice-dot{background:var(--accent);animation:blink 1.5s infinite}
+
+/* ── AI coach box ── */
+.ai-box{background:linear-gradient(135deg,rgba(0,229,176,.05),rgba(0,170,255,.03));
+  border:1px solid rgba(0,229,176,.13);border-radius:8px;padding:12px;margin-top:10px}
+.ai-lbl{font-family:'Space Mono',monospace;font-size:.58rem;text-transform:uppercase;
+  letter-spacing:.1em;color:var(--accent);margin-bottom:6px;display:flex;align-items:center;gap:6px}
+.ai-text{font-size:.76rem;color:var(--text);line-height:1.6;min-height:52px}
+.cursor{display:inline-block;width:7px;height:.85em;background:var(--accent);
+  animation:blink .7s infinite;vertical-align:middle;border-radius:1px;margin-left:1px}
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:var(--bg)}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+
+/* ── Modals ── */
+.modal-back{position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:500;
+  display:none;align-items:center;justify-content:center;backdrop-filter:blur(4px)}
+.modal-back.open{display:flex}
+.modal{background:var(--bg2);border:1px solid var(--border);border-radius:16px;
+  padding:24px;max-width:500px;width:90%;position:relative;max-height:85vh;overflow-y:auto}
+.modal h2{font-size:1.1rem;font-weight:800;color:var(--accent);margin-bottom:14px}
+.modal-close{position:absolute;top:12px;right:12px;background:var(--bg3);
+  border:1px solid var(--border);border-radius:6px;padding:3px 8px;
+  cursor:pointer;color:var(--muted);font-size:.72rem}
+.modal-close:hover{color:var(--text);border-color:var(--accent)}
+.form-row{margin-bottom:12px}
+.form-label{font-size:.68rem;color:var(--muted);font-family:'Space Mono',monospace;
+  text-transform:uppercase;letter-spacing:.08em;margin-bottom:5px;display:block}
+.form-input{width:100%;background:var(--bg3);border:1px solid var(--border);
+  border-radius:8px;padding:9px 12px;color:var(--text);font-family:'Syne',sans-serif;
+  font-size:.82rem;outline:none;transition:border-color .2s}
+.form-input:focus{border-color:var(--accent)}
+
+/* ── Trend chart ── */
+.trend-wrap{height:140px;position:relative;margin-bottom:4px}
 </style>
 </head>
 <body>
-
 <div class="app">
 
-  <!-- ── Header ────────────────────────────────────────────── -->
-  <header>
-    <div class="logo">
-      <div class="logo-icon">🦾</div>
-      <div class="logo-text">
-        <h1>PostureGuard AI</h1>
-        <span>Computer Vision · Ergonomic Coach</span>
+<!-- SIDEBAR -->
+<nav class="sidebar">
+  <div class="sidebar-logo">
+    <h1>&#129470; PostureGuard</h1>
+    <small>AI Ergonomic Coach v2</small>
+  </div>
+  <div class="sidebar-section">Analysis</div>
+  <button class="nav-item active" onclick="showPanel('live')" id="nav-live"><span class="nav-icon">&#128249;</span> Live Analysis</button>
+  <button class="nav-item" onclick="showPanel('trends')" id="nav-trends"><span class="nav-icon">&#128200;</span> Score Trends</button>
+  <div class="sidebar-section">Progress</div>
+  <button class="nav-item" onclick="showPanel('streaks')" id="nav-streaks"><span class="nav-icon">&#128293;</span> Streaks</button>
+  <button class="nav-item" onclick="showPanel('plan')" id="nav-plan"><span class="nav-icon">&#128197;</span> 7-Day Plan</button>
+  <div class="sidebar-section">Social</div>
+  <button class="nav-item" onclick="showPanel('challenges')" id="nav-challenges"><span class="nav-icon">&#9876;&#65039;</span> Challenges</button>
+  <div class="sidebar-section">Settings</div>
+  <button class="nav-item" onclick="showPanel('calibration')" id="nav-calibration"><span class="nav-icon">&#127919;</span> Calibration</button>
+  <button class="nav-item" onclick="showPanel('profiles')" id="nav-profiles"><span class="nav-icon">&#128100;</span> Profiles</button>
+  <div class="sidebar-footer">
+    <div class="profile-chip" onclick="showPanel('profiles')">
+      <div class="avatar" id="sidebarAvatar" style="background:#5DCAA5">Y</div>
+      <div>
+        <div class="profile-name" id="sidebarName">You</div>
+        <div class="profile-mode" id="sidebarMode">seated mode</div>
       </div>
     </div>
-    <div class="status-chip">
-      <div class="dot" id="statusDot"></div>
-      <span id="statusText">Camera off</span>
+    <a href="/obs" target="_blank" style="display:flex;align-items:center;gap:8px;padding:7px 10px;margin-top:6px;border-radius:8px;font-size:.72rem;color:var(--muted);text-decoration:none;" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--muted)'">&#127909; OBS Widget &#8599;</a>
+  </div>
+</nav>
+
+<!-- MAIN -->
+<div class="main">
+  <div class="topbar">
+    <div class="topbar-title" id="topbarTitle">Live Analysis</div>
+    <div class="topbar-right">
+      <div class="voice-chip" id="voiceChip" onclick="toggleVoice()">
+        <div class="voice-dot"></div><span id="voiceLbl">Voice off</span>
+      </div>
+      <div class="mode-toggle">
+        <button class="mode-btn active" id="modeSeated" onclick="setMode('seated')">&#128697; Seated</button>
+        <button class="mode-btn" id="modeStanding" onclick="setMode('standing')">&#129485; Standing</button>
+      </div>
+      <div class="status-chip">
+        <div class="dot" id="dot"></div><span id="statusTxt">Camera off</span>
+      </div>
     </div>
-  </header>
+  </div>
 
-  <!-- ── Main grid ──────────────────────────────────────────── -->
-  <div class="main-grid">
+  <div class="content">
 
-    <!-- Camera + score -->
-    <div class="card camera-card">
-      <div class="card-label">Live Feed — Posture Analysis</div>
+    <!-- LIVE ANALYSIS PANEL -->
+    <div class="panel active" id="panel-live">
+      <div class="grid-2" style="align-items:start">
+        <div>
+          <div class="card" style="padding:14px">
+            <div class="clabel">Live Feed</div>
+            <div class="cam-wrap" id="camWrap">
+              <video id="vid" autoplay muted playsinline></video>
+              <canvas id="skelCanvas"></canvas>
+              <div class="corners"><div class="c tl"></div><div class="c tr"></div><div class="c bl"></div><div class="c br"></div></div>
+              <div class="scan" id="scanLine"></div>
+              <div class="no-cam" id="noCam">
+                <div class="no-cam-ico">&#128247;</div>
+                <div>Click <strong>Start</strong> to begin</div>
+                <div style="font-size:.68rem;margin-top:3px">Upper body visible &middot; good lighting</div>
+              </div>
+            </div>
+            <div class="score-row">
+              <div class="ring-wrap">
+                <svg id="ringSvg" viewBox="0 0 82 82">
+                  <circle cx="41" cy="41" r="32" fill="none" stroke="#1a2535" stroke-width="5"/>
+                  <circle id="ringArc" cx="41" cy="41" r="32" fill="none" stroke="#00e5b0" stroke-width="5" stroke-linecap="round" stroke-dasharray="201" stroke-dashoffset="201" style="transition:stroke-dashoffset .5s,stroke .5s"/>
+                </svg>
+                <div class="ring-num"><span id="scoreNum">--</span><small>SCORE</small></div>
+              </div>
+              <div style="flex:1">
+                <div class="posture-label" id="postureLabel">Awaiting camera</div>
+                <div class="score-sub" id="scoreSub">Start camera to begin real-time analysis</div>
+                <div style="margin-top:8px">
+                  <div style="font-size:.6rem;color:var(--muted);font-family:'Space Mono',monospace" id="breakLabel">Next break: --</div>
+                  <div class="break-bar-wrap"><div class="break-bar" id="breakBar"></div></div>
+                </div>
+              </div>
+            </div>
+            <div class="btn-row">
+              <button class="btn btn-p" id="startBtn" onclick="startCam()">&#9654; Start</button>
+              <button class="btn btn-o btn-sm" id="endBtn" style="display:none" onclick="endSession()">&#9209; End Session</button>
+              <button class="btn btn-o btn-sm" id="resetBtn" style="display:none" onclick="resetSess()">&#8635; Reset</button>
+            </div>
+          </div>
 
-      <div class="camera-wrap" id="cameraWrap">
-        <video id="videoEl" autoplay muted playsinline></video>
-        <canvas id="skeletonCanvas"></canvas>
-        <div class="camera-overlay-corners">
-          <div class="corner tl"></div>
-          <div class="corner tr"></div>
-          <div class="corner bl"></div>
-          <div class="corner br"></div>
+          <div class="card">
+            <div class="clabel">Session Stats</div>
+            <div class="grid-4">
+              <div class="stat"><div class="stat-v" id="stDur">0s</div><div class="stat-l">Duration</div></div>
+              <div class="stat"><div class="stat-v" id="stAvg">--</div><div class="stat-l">Avg Score</div></div>
+              <div class="stat"><div class="stat-v" id="stBad">--%</div><div class="stat-l">Bad Posture</div></div>
+              <div class="stat"><div class="stat-v" id="stFrames">0</div><div class="stat-l">Frames</div></div>
+            </div>
+            <div style="margin-top:12px">
+              <div class="clabel" style="margin-bottom:6px">Live score history</div>
+              <div class="chart-wrap"><canvas id="chartCvs"></canvas></div>
+            </div>
+          </div>
+          <div class="card" style="padding:14px">
+            <div class="clabel">Weekly Report</div>
+            <div style="font-size:.73rem;color:var(--muted);margin-bottom:10px;line-height:1.5">Download a PDF summary of your past 7 days.</div>
+            <button class="btn btn-o btn-sm" onclick="downloadReport()">&#11015; Download PDF</button>
+          </div>
         </div>
-        <div class="scan-line" id="scanLine" style="display:none"></div>
-        <div class="no-cam-msg" id="noCamMsg">
-          <div class="icon">📷</div>
-          <div>Click <strong>Start Analysis</strong> to begin</div>
-          <div style="font-size:0.72rem; color:var(--muted); margin-top:4px;">
-            Ensure your upper body is visible
+
+        <div>
+          <div class="card">
+            <div class="clabel">Active Issues</div>
+            <div id="issueList"><div class="ok-msg" style="color:var(--muted)">Start camera to detect issues</div></div>
+            <div class="ai-box">
+              <div class="ai-lbl">&#129302; AI Coach</div>
+              <div class="ai-text" id="aiText">Your AI coach will give personalised tips once analysis starts.</div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="clabel">Body Metrics</div>
+            <div class="grid-2" style="gap:10px">
+              <div class="met-item"><div class="met-name">Forward Head</div><div class="met-val"><span id="mFwd">--</span><span>&#176;</span></div><div class="bar-wrap"><div class="bar" id="bFwd"></div></div></div>
+              <div class="met-item"><div class="met-name">Shoulder Tilt</div><div class="met-val"><span id="mSh">--</span><span>%</span></div><div class="bar-wrap"><div class="bar" id="bSh"></div></div></div>
+              <div class="met-item"><div class="met-name">Spine Curve</div><div class="met-val"><span id="mSp">--</span><span>&#176;</span></div><div class="bar-wrap"><div class="bar" id="bSp"></div></div></div>
+              <div class="met-item"><div class="met-name">Head Tilt</div><div class="met-val"><span id="mHt">--</span><span>%</span></div><div class="bar-wrap"><div class="bar" id="bHt"></div></div></div>
+            </div>
           </div>
         </div>
       </div>
-
-      <div class="score-row">
-        <div class="score-ring">
-          <svg id="scoreRingSvg" viewBox="0 0 90 90">
-            <circle id="scoreRingBg" cx="45" cy="45" r="36" fill="none" stroke="#1a2535" stroke-width="6"/>
-            <circle id="scoreRingFill" cx="45" cy="45" r="36" fill="none"
-                    stroke="#00e5b0" stroke-width="6" stroke-linecap="round"
-                    stroke-dasharray="226" stroke-dashoffset="226"/>
-          </svg>
-          <div class="score-num">
-            <span id="scoreNum">--</span>
-            <small>SCORE</small>
-          </div>
-        </div>
-        <div class="score-info">
-          <div class="posture-label" id="postureLabel">Awaiting camera...</div>
-          <div class="score-sub" id="scoreSub">
-            Start the camera to begin real-time analysis.<br>
-            Sit 60–90cm from camera, upper body visible.
-          </div>
-        </div>
-      </div>
-
-      <div class="btn-row">
-        <button class="btn btn-primary" id="startBtn" onclick="startCamera()">
-          ▶ Start Analysis
-        </button>
-        <button class="btn btn-outline" onclick="openGuide()">
-          📐 Posture Guide
-        </button>
-        <button class="btn btn-outline" id="resetBtn" onclick="resetSession()" style="display:none">
-          ↺ Reset Session
-        </button>
-      </div>
     </div>
 
-    <!-- Side panel -->
-    <div style="display:flex; flex-direction:column; gap:20px;">
-
-      <!-- Session stats -->
+    <!-- TRENDS PANEL -->
+    <div class="panel" id="panel-trends">
       <div class="card">
-        <div class="card-label">Session Stats</div>
-        <div class="stats-row">
-          <div class="stat-item">
-            <div class="stat-val" id="statDuration">0s</div>
-            <div class="stat-label">Duration</div>
-          </div>
-          <div class="stat-item">
-            <div class="stat-val" id="statAvg">--</div>
-            <div class="stat-label">Avg Score</div>
-          </div>
-          <div class="stat-item">
-            <div class="stat-val" id="statBadPct">--%</div>
-            <div class="stat-label">Bad Posture</div>
-          </div>
-        </div>
+        <div class="clabel">8-Week Score Trend</div>
+        <div class="trend-wrap"><canvas id="trendCvs"></canvas></div>
       </div>
-
-      <!-- Score chart -->
-      <div class="card">
-        <div class="card-label">Score History (last 60 frames)</div>
-        <div class="chart-wrap">
-          <canvas id="scoreChartCanvas"></canvas>
+      <div class="grid-2">
+        <div class="card">
+          <div class="clabel">Weekly Breakdown</div>
+          <div id="weeklyTable" style="font-size:.78rem;color:var(--muted)">Loading...</div>
         </div>
-      </div>
-
-      <!-- Issues -->
-      <div class="card" style="flex:1">
-        <div class="card-label">Active Issues</div>
-        <div id="issuesList">
-          <div class="no-issues" style="color:var(--muted)">Start camera to detect issues</div>
-        </div>
-
-        <div class="tip-card" id="tipCard">
-          <div class="tip-label">💡 Posture Tip</div>
-          <span id="tipText">The 20-20-20 rule: every 20 minutes, look 20 feet away for 20 seconds to reduce eye and neck strain.</span>
-        </div>
-      </div>
-
-    </div>
-
-    <!-- Bottom row: metrics + tips -->
-    <div class="bottom-row">
-
-      <!-- Body metrics -->
-      <div class="card">
-        <div class="card-label">Body Metrics</div>
-        <div class="metrics-grid">
-          <div class="metric-item">
-            <div class="metric-name">Forward Head</div>
-            <div class="metric-val"><span id="mForward">--</span><span>°</span></div>
-            <div class="metric-bar-wrap"><div class="metric-bar" id="barForward"></div></div>
-          </div>
-          <div class="metric-item">
-            <div class="metric-name">Shoulder Tilt</div>
-            <div class="metric-val"><span id="mShoulder">--</span><span>%</span></div>
-            <div class="metric-bar-wrap"><div class="metric-bar" id="barShoulder"></div></div>
-          </div>
-          <div class="metric-item">
-            <div class="metric-name">Spine Curve</div>
-            <div class="metric-val"><span id="mSpine">--</span><span>°</span></div>
-            <div class="metric-bar-wrap"><div class="metric-bar" id="barSpine"></div></div>
-          </div>
-          <div class="metric-item">
-            <div class="metric-name">Head Tilt</div>
-            <div class="metric-val"><span id="mHead">--</span><span>%</span></div>
-            <div class="metric-bar-wrap"><div class="metric-bar" id="barHead"></div></div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Recommendations -->
-      <div class="card">
-        <div class="card-label">Ergonomic Checklist</div>
-        <div style="display:flex; flex-direction:column; gap:8px; margin-top:4px;">
-          <label class="check-item" style="display:flex;align-items:center;gap:10px;font-size:0.8rem;color:var(--muted);cursor:pointer">
-            <input type="checkbox" style="accent-color:var(--accent)"> Monitor at eye level
-          </label>
-          <label class="check-item" style="display:flex;align-items:center;gap:10px;font-size:0.8rem;color:var(--muted);cursor:pointer">
-            <input type="checkbox" style="accent-color:var(--accent)"> Chair back supports lower spine
-          </label>
-          <label class="check-item" style="display:flex;align-items:center;gap:10px;font-size:0.8rem;color:var(--muted);cursor:pointer">
-            <input type="checkbox" style="accent-color:var(--accent)"> Feet flat on floor or footrest
-          </label>
-          <label class="check-item" style="display:flex;align-items:center;gap:10px;font-size:0.8rem;color:var(--muted);cursor:pointer">
-            <input type="checkbox" style="accent-color:var(--accent)"> Keyboard at elbow height
-          </label>
-          <label class="check-item" style="display:flex;align-items:center;gap:10px;font-size:0.8rem;color:var(--muted);cursor:pointer">
-            <input type="checkbox" style="accent-color:var(--accent)"> Take break every 30 min
-          </label>
-          <label class="check-item" style="display:flex;align-items:center;gap:10px;font-size:0.8rem;color:var(--muted);cursor:pointer">
-            <input type="checkbox" style="accent-color:var(--accent)"> Screen 50–70cm from eyes
-          </label>
+        <div class="card">
+          <div class="clabel">All-Time Stats</div>
+          <div id="allTimeStats" style="font-size:.78rem;color:var(--muted)">Loading...</div>
         </div>
       </div>
     </div>
 
-  </div><!-- /main-grid -->
+    <!-- STREAKS PANEL -->
+    <div class="panel" id="panel-streaks">
+      <div class="grid-2" style="align-items:start">
+        <div>
+          <div class="card">
+            <div class="clabel">Current Streak</div>
+            <div class="streak-display">
+              <div class="streak-num" id="streakNum">0</div>
+              <div>
+                <div class="streak-label">Day streak</div>
+                <div class="streak-sub" id="streakSub">Complete a session with avg score &ge; 75 to start your streak</div>
+              </div>
+            </div>
+            <div class="grid-2" style="gap:10px;margin-top:2px">
+              <div class="stat"><div class="stat-v" id="bestStreak">0</div><div class="stat-l">Best Streak</div></div>
+              <div class="stat"><div class="stat-v" id="totalSessions">0</div><div class="stat-l">Sessions</div></div>
+              <div class="stat"><div class="stat-v" id="totalHours">0h</div><div class="stat-l">Tracked Time</div></div>
+              <div class="stat"><div class="stat-v" id="bestScore">0</div><div class="stat-l">Best Score</div></div>
+            </div>
+          </div>
+        </div>
+        <div>
+          <div class="card">
+            <div class="clabel">Milestones</div>
+            <div id="milestoneList">Loading...</div>
+          </div>
+        </div>
+      </div>
+    </div>
 
-  <footer>
-    <strong>PostureGuard AI</strong> · Computer Vision Capstone Project ·
-    Built with MediaPipe Pose + OpenCV · Real-time ergonomic analysis
-  </footer>
+    <!-- 7-DAY PLAN PANEL -->
+    <div class="panel" id="panel-plan">
+      <div class="card">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+          <div>
+            <div class="clabel" style="margin-bottom:3px">AI 7-Day Improvement Plan</div>
+            <div style="font-size:.73rem;color:var(--muted)">Personalised from your session history</div>
+          </div>
+          <button class="btn btn-p btn-sm" onclick="generatePlan()" id="genPlanBtn">&#10024; Generate Plan</button>
+        </div>
+        <div id="planContent">
+          <div style="font-size:.8rem;color:var(--muted);padding:20px;text-align:center">No plan yet. Click <strong style="color:var(--accent)">Generate Plan</strong> to create your personalised 7-day programme.</div>
+        </div>
+      </div>
+    </div>
 
-</div><!-- /app -->
+    <!-- CHALLENGES PANEL -->
+    <div class="panel" id="panel-challenges">
+      <div class="grid-2" style="align-items:start">
+        <div>
+          <div class="card">
+            <div class="clabel">Create a Challenge</div>
+            <div style="font-size:.73rem;color:var(--muted);margin-bottom:12px;line-height:1.5">Start a challenge room and share the code with a friend. Compete on avg posture score over 24h.</div>
+            <button class="btn btn-p" onclick="createChallenge()">&#9876;&#65039; Create Room</button>
+            <div id="createdRoom" style="display:none;margin-top:12px">
+              <div class="room-display" id="roomCode">------</div>
+              <div style="font-size:.7rem;color:var(--muted);text-align:center;font-family:'Space Mono',monospace;margin-top:4px">Share this code with your friend</div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="clabel">Join a Challenge</div>
+            <div class="form-row">
+              <label class="form-label">Room Code</label>
+              <input class="form-input" id="joinCodeInput" placeholder="A3F9K2" maxlength="6" style="text-transform:uppercase;letter-spacing:.15em;font-family:'Space Mono',monospace;font-size:1rem">
+            </div>
+            <button class="btn btn-o" onclick="joinChallenge()">&#8594; Join Room</button>
+          </div>
+        </div>
+        <div>
+          <div class="card">
+            <div class="clabel">Leaderboard</div>
+            <div id="leaderboard"><div style="font-size:.76rem;color:var(--muted);padding:10px">Create or join a challenge to see the leaderboard.</div></div>
+            <div id="challengeStatus" style="margin-top:8px;font-size:.7rem;color:var(--muted);font-family:'Space Mono',monospace"></div>
+          </div>
+        </div>
+      </div>
+    </div>
 
-<!-- ── Posture Guide Modal ─────────────────────────────────── -->
-<div class="modal-backdrop" id="guideModal">
+    <!-- CALIBRATION PANEL -->
+    <div class="panel" id="panel-calibration">
+      <div class="grid-2" style="align-items:start">
+        <div>
+          <div class="card">
+            <div class="clabel">Personal Calibration Wizard</div>
+            <div style="font-size:.73rem;color:var(--muted);margin-bottom:14px;line-height:1.6">Calibrate to <strong style="color:var(--text)">your body</strong>. We capture 3 poses to set thresholds that match your proportions &mdash; no false alerts.</div>
+            <div class="cal-step" id="calStep-ideal">
+              <div class="cal-step-num">Step 1 of 3</div>
+              <div class="cal-step-name">Perfect Posture</div>
+              <div class="cal-step-cue">Sit tall, ears over shoulders, back straight. Hold still.</div>
+              <div class="cal-progress"><div class="cal-bar" id="calBar-ideal" style="width:0%"></div></div>
+            </div>
+            <div class="cal-step" id="calStep-forward">
+              <div class="cal-step-num">Step 2 of 3</div>
+              <div class="cal-step-name">Natural Forward Lean</div>
+              <div class="cal-step-cue">Lean forward slightly as you naturally read. Hold still.</div>
+              <div class="cal-progress"><div class="cal-bar" id="calBar-forward" style="width:0%"></div></div>
+            </div>
+            <div class="cal-step" id="calStep-slouch">
+              <div class="cal-step-num">Step 3 of 3</div>
+              <div class="cal-step-name">Natural Slouch</div>
+              <div class="cal-step-cue">Let yourself slouch as you normally would. Hold still.</div>
+              <div class="cal-progress"><div class="cal-bar" id="calBar-slouch" style="width:0%"></div></div>
+            </div>
+            <div class="btn-row">
+              <button class="btn btn-p" id="calStartBtn" onclick="startCalibration()">&#127919; Start Calibration</button>
+              <div id="calStatus" style="font-size:.7rem;color:var(--muted);display:flex;align-items:center;padding:4px 0"></div>
+            </div>
+          </div>
+        </div>
+        <div>
+          <div class="card">
+            <div class="clabel">Current Thresholds</div>
+            <div id="thresholdDisplay">Loading...</div>
+            <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border)">
+              <div class="clabel" style="margin-bottom:6px">Calibration Status</div>
+              <div id="calStatusCard" style="font-size:.76rem;color:var(--muted)">Not calibrated &mdash; using defaults</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PROFILES PANEL -->
+    <div class="panel" id="panel-profiles">
+      <div class="grid-2" style="align-items:start">
+        <div>
+          <div class="card">
+            <div class="clabel">User Profiles</div>
+            <div id="profileList">Loading...</div>
+            <div class="btn-row"><button class="btn btn-p btn-sm" onclick="openNewProfileModal()">+ New Profile</button></div>
+          </div>
+        </div>
+        <div>
+          <div class="card">
+            <div class="clabel">Active Profile Details</div>
+            <div id="activeProfileDetail" style="font-size:.78rem;color:var(--muted)">Select a profile to view details.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+</div>
+
+<!-- ALERT TOAST -->
+<div class="alert-toast" id="alertToast">
+  <button class="alert-toast-close" onclick="dismissToast()">&#10005;</button>
+  <div class="alert-toast-title" id="toastTitle">Alert</div>
+  <div class="alert-toast-msg" id="toastMsg"></div>
+</div>
+
+<!-- NEW PROFILE MODAL -->
+<div class="modal-back" id="newProfileModal">
   <div class="modal">
-    <button class="modal-close" onclick="closeGuide()">✕ Close</button>
-    <h2>📐 Perfect Posture Guide</h2>
-    <div class="pose-tips">
-      <div class="pose-tip-item">
-        <div class="icon">🪑</div>
-        <h4>Spine Neutral</h4>
-        <p>Keep natural S-curve. Avoid rounding lower back or arching excessively.</p>
-      </div>
-      <div class="pose-tip-item">
-        <div class="icon">🦴</div>
-        <h4>Head Position</h4>
-        <p>Ears directly above shoulders. Chin slightly tucked. Avoid forward head posture.</p>
-      </div>
-      <div class="pose-tip-item">
-        <div class="icon">💪</div>
-        <h4>Shoulders</h4>
-        <p>Relaxed and level. Avoid shrugging or one being higher than the other.</p>
-      </div>
-      <div class="pose-tip-item">
-        <div class="icon">📱</div>
-        <h4>Screen Height</h4>
-        <p>Top of screen at or just below eye level. Tilt back 10–20° to reduce glare.</p>
-      </div>
-      <div class="pose-tip-item">
-        <div class="icon">⏰</div>
-        <h4>Take Breaks</h4>
-        <p>Stand and stretch every 30 minutes. Walk for 2 minutes each hour.</p>
-      </div>
-      <div class="pose-tip-item">
-        <div class="icon">🎯</div>
-        <h4>Score Goals</h4>
-        <p>Aim for 85+ consistently. Under 65 means active issues to address now.</p>
-      </div>
+    <button class="modal-close" onclick="closeModal('newProfileModal')">&#10005;</button>
+    <h2>New Profile</h2>
+    <div class="form-row">
+      <label class="form-label">Display Name</label>
+      <input class="form-input" id="newProfileName" placeholder="e.g. Alex">
     </div>
-    <button class="btn btn-primary" onclick="closeGuide(); startCamera();" style="width:100%">
-      ▶ Start Analysis Now
-    </button>
+    <div class="form-row">
+      <label class="form-label">Profile ID (no spaces)</label>
+      <input class="form-input" id="newProfileId" placeholder="e.g. alex">
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-p" onclick="submitNewProfile()">Create Profile</button>
+      <button class="btn btn-o" onclick="closeModal('newProfileModal')">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- MILESTONE MODAL -->
+<div class="modal-back" id="milestoneModal">
+  <div class="modal" style="text-align:center;padding:32px 24px">
+    <div style="font-size:3rem;margin-bottom:10px" id="mIcon">&#127942;</div>
+    <h2 style="text-align:center">Achievement Unlocked!</h2>
+    <div style="font-size:1rem;font-weight:700;color:var(--text);margin:8px 0" id="mName"></div>
+    <div style="font-size:.78rem;color:var(--muted);margin-bottom:20px" id="mDesc"></div>
+    <button class="btn btn-p" onclick="closeModal('milestoneModal')" style="margin:0 auto">&#127881; Awesome!</button>
   </div>
 </div>
 
 <script>
-// ── State ──────────────────────────────────────────────────────────────────
-let stream = null;
-let isRunning = false;
-let animFrameId = null;
-let offscreenCanvas = null;
-let scoreHistory = [];
-let sessionStartTime = null;
-let sessionInterval = null;
-let tipIndex = 0;
+// ════════════════════════════════════════════════════════════════════════
+// PostureGuard AI v2 — Full Frontend JS
+// Features: live analysis, voice coaching, smart alerts, mode toggle,
+//   calibration wizard, streaks/milestones, 7-day plan, challenges,
+//   score trends, user profiles, PDF report, OBS widget sync
+// ════════════════════════════════════════════════════════════════════════
 
-const TIPS = [
-  "The 20-20-20 rule: every 20 min, look 20 feet away for 20 seconds to reduce eye and neck strain.",
-  "A score above 85 consistently means your ergonomic setup is working well. Keep it up!",
-  "Forward head posture adds ~4.5 kg of strain per inch forward. Keep ears over shoulders.",
-  "Weak core muscles are often the root cause of slouching. Planks and dead bugs help.",
-  "Standing desks help — but only if you maintain correct posture while standing too.",
-  "Micro-breaks of 30 seconds are shown to reduce cumulative strain significantly.",
-  "A lumbar roll or rolled towel behind lower back can immediately improve spine alignment.",
-];
+// ── State ────────────────────────────────────────────────────────────────
+let running = false, stream = null;
+let smooth = 80, scoreHist = [], sessStart = null, sessInterval = null;
+let offCvs = null, animId = null;
+let voiceOn = false, lastVoice = 0, lastAi = 0;
+let activeUser = 'default';
+let currentMode = 'seated';
+let activeChallenge = null;
+// Calibration
+let calRunning = false, calPoseIdx = 0, calPoses = ['ideal','forward','slouch'];
+let calCapturing = false;
 
-// ── Camera ─────────────────────────────────────────────────────────────────
-async function startCamera() {
-  if (isRunning) return;
+// ── Panel navigation ─────────────────────────────────────────────────────
+function showPanel(name) {
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('panel-' + name).classList.add('active');
+  const nav = document.getElementById('nav-' + name);
+  if (nav) nav.classList.add('active');
+  const titles = {live:'Live Analysis',trends:'Score Trends',streaks:'Streaks & Milestones',
+    plan:'7-Day Plan',challenges:'Challenges',calibration:'Calibration',profiles:'Profiles'};
+  document.getElementById('topbarTitle').textContent = titles[name] || name;
+  // Load data for panel
+  if (name === 'trends') loadTrends();
+  if (name === 'streaks') loadStreaks();
+  if (name === 'plan') loadPlan();
+  if (name === 'calibration') loadThresholds();
+  if (name === 'profiles') loadProfiles();
+}
 
+// ── Colour helper ────────────────────────────────────────────────────────
+function scoreColor(s) {
+  return s >= 85 ? '#00e5b0' : s >= 65 ? '#ffb020' : '#ff3c5c';
+}
+
+// ── Camera ───────────────────────────────────────────────────────────────
+async function startCam() {
+  if (running) { stopCam(); return; }
   try {
-    stream = await navigator.mediaDevices.getUserMedia({
-      video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: 'user' }
-    });
-
-    const video = document.getElementById('videoEl');
-    video.srcObject = stream;
-    await video.play();
-
-    document.getElementById('noCamMsg').style.display = 'none';
+    stream = await navigator.mediaDevices.getUserMedia(
+      {video:{width:{ideal:640},height:{ideal:480},facingMode:'user'}});
+    const vid = document.getElementById('vid');
+    vid.srcObject = stream;
+    await vid.play();
+    document.getElementById('noCam').style.display = 'none';
+    document.getElementById('scanLine').style.display = 'block';
     document.getElementById('startBtn').textContent = '⏹ Stop';
-    document.getElementById('startBtn').onclick = stopCamera;
+    document.getElementById('endBtn').style.display = '';
     document.getElementById('resetBtn').style.display = '';
-    document.getElementById('statusDot').classList.add('active');
-    document.getElementById('statusText').textContent = 'Analyzing';
-    document.getElementById('scanLine').style.display = '';
-
-    offscreenCanvas = document.createElement('canvas');
-    isRunning = true;
-    sessionStartTime = Date.now();
-    sessionInterval = setInterval(updateSessionStats, 1000);
-
-    // Tip rotation
-    setInterval(rotateTip, 12000);
-
-    processFrame();
-  } catch (err) {
-    alert('Camera access denied or unavailable.\n\n' + err.message);
-  }
+    document.getElementById('dot').classList.add('live');
+    document.getElementById('statusTxt').textContent = 'Analyzing';
+    offCvs = document.createElement('canvas');
+    running = true; smooth = 80; scoreHist = [];
+    sessStart = Date.now();
+    sessInterval = setInterval(updateStats, 1000);
+    loop();
+  } catch(e) { alert('Camera error: ' + e.message); }
 }
 
-function stopCamera() {
-  isRunning = false;
-  if (animFrameId) cancelAnimationFrame(animFrameId);
+function stopCam() {
+  running = false;
+  if (animId) cancelAnimationFrame(animId);
   if (stream) stream.getTracks().forEach(t => t.stop());
-  if (sessionInterval) clearInterval(sessionInterval);
-
-  document.getElementById('videoEl').srcObject = null;
-  document.getElementById('noCamMsg').style.display = '';
-  document.getElementById('startBtn').textContent = '▶ Start Analysis';
-  document.getElementById('startBtn').onclick = startCamera;
-  document.getElementById('statusDot').classList.remove('active');
-  document.getElementById('statusText').textContent = 'Camera off';
+  if (sessInterval) clearInterval(sessInterval);
+  document.getElementById('vid').srcObject = null;
+  document.getElementById('noCam').style.display = '';
   document.getElementById('scanLine').style.display = 'none';
-
-  // Clear skeleton
-  const canvas = document.getElementById('skeletonCanvas');
-  const ctx = canvas.getContext('2d');
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  document.getElementById('startBtn').textContent = '▶ Start';
+  document.getElementById('endBtn').style.display = 'none';
+  document.getElementById('resetBtn').style.display = 'none';
+  document.getElementById('dot').classList.remove('live');
+  document.getElementById('statusTxt').textContent = 'Camera off';
+  clearSkel();
 }
 
-// ── Frame capture + API call ───────────────────────────────────────────────
-async function processFrame() {
-  if (!isRunning) return;
-
-  const video = document.getElementById('videoEl');
-  if (video.readyState < 2) {
-    animFrameId = requestAnimationFrame(processFrame);
-    return;
-  }
-
-  offscreenCanvas.width  = video.videoWidth  || 640;
-  offscreenCanvas.height = video.videoHeight || 480;
-  const ctx2d = offscreenCanvas.getContext('2d');
-  ctx2d.drawImage(video, 0, 0);
-
-  const b64 = offscreenCanvas.toDataURL('image/jpeg', 0.7);
-
-  try {
-    const resp = await fetch('/api/analyze', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ frame: b64 })
-    });
-
-    if (resp.ok) {
-      const data = await resp.json();
-      if (data.detected) {
-        updateUI(data);
-        drawSkeleton(data.keypoints, data.connections, data.score,
-                     offscreenCanvas.width, offscreenCanvas.height);
-      } else {
-        document.getElementById('postureLabel').textContent = 'No person detected';
-        document.getElementById('postureLabel').style.color = 'var(--muted)';
+async function loop() {
+  if (!running) return;
+  const vid = document.getElementById('vid');
+  if (vid.readyState >= 2) {
+    offCvs.width = vid.videoWidth || 640;
+    offCvs.height = vid.videoHeight || 480;
+    offCvs.getContext('2d').drawImage(vid, 0, 0);
+    const b64 = offCvs.toDataURL('image/jpeg', 0.65);
+    try {
+      const payload = {frame: b64, user: activeUser};
+      if (activeChallenge) payload.challenge_id = activeChallenge;
+      const r = await fetch('/api/analyze', {method:'POST',
+        headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)});
+      if (r.ok) {
+        const d = await r.json();
+        if (d.detected) {
+          updateUI(d);
+          if (d.keypoints) drawSkel(d.keypoints, d.connections, d.score, offCvs.width, offCvs.height);
+          if (d.alert) showToast(d.alert.title, d.alert.message, d.alert.type);
+          updateBreakBar(d.next_break_in);
+        }
       }
-    }
-  } catch (e) {
-    // Backend may be unavailable — run in demo/standalone mode
-    simulateDemo();
+    } catch(e) { simFrame(); }
   }
-
-  // ~10 fps to avoid overwhelming backend
-  setTimeout(() => { animFrameId = requestAnimationFrame(processFrame); }, 100);
+  // Sync score to OBS widget via localStorage
+  if (scoreHist.length) {
+    try { localStorage.setItem('pg_score', scoreHist[scoreHist.length-1]); } catch(e){}
+  }
+  setTimeout(() => { animId = requestAnimationFrame(loop); }, 100);
 }
 
-// ── Demo mode (when no backend) ────────────────────────────────────────────
-let demoScore = 78;
-let demoTick = 0;
-
-function simulateDemo() {
-  demoTick++;
-  // Simulate natural fluctuation
-  demoScore += (Math.random() - 0.48) * 3;
-  demoScore = Math.max(40, Math.min(100, demoScore));
-
+// ── Simulation fallback ──────────────────────────────────────────────────
+let simS = 76;
+function simFrame() {
+  simS += (Math.random()-.47)*2.5;
+  simS = Math.max(42, Math.min(100, simS));
+  smooth = .85*smooth + .15*simS;
+  const score = Math.round(smooth*10)/10;
+  const fwd = score < 75 ? 17+Math.random()*4 : 8+Math.random()*3;
+  const sht = 3+Math.random()*3;
+  const spd = score < 68 ? 23+Math.random()*5 : 13+Math.random()*3;
+  const hdt = 2+Math.random()*2;
   const issues = [];
-  if (demoScore < 75) {
-    issues.push({ issue: 'Forward Head', value: 18.2, unit: '°', severity: 'MODERATE', fix: 'Pull chin back — align ears over shoulders' });
-  }
-  if (demoScore < 65) {
-    issues.push({ issue: 'Slouching', value: 24.1, unit: '°', severity: 'HIGH', fix: 'Sit tall — imagine a string pulling your crown upward' });
-  }
-
-  const metrics = {
-    forward_deg: demoScore < 75 ? 18.2 : 8.1,
-    sh_tilt: 4.2,
-    spine_dev: demoScore < 65 ? 24.1 : 12.3,
-    head_tilt: 2.1,
-  };
-
-  const fakeHistory = Array.from({ length: 60 }, (_, i) =>
-    demoScore + Math.sin(i * 0.3) * 5 + Math.random() * 3
-  );
-
-  updateUI({ score: demoScore, issues, metrics, score_history: fakeHistory });
-
-  // Simulate skeleton on canvas
-  drawDemoSkeleton(demoScore);
+  if (fwd > 15) issues.push({issue:'Forward Head',value:fwd.toFixed(1),unit:'°',severity:fwd>22?'HIGH':'MODERATE',fix:'Pull chin back — align ears over shoulders'});
+  if (spd > 20) issues.push({issue:'Slouching',value:spd.toFixed(1),unit:'°',severity:spd>28?'HIGH':'MODERATE',fix:'Sit tall — imagine string pulling crown upward'});
+  updateUI({score, issues, metrics:{fwd_deg:fwd,sh_tilt:sht,spine_d:spd,head_t:hdt},
+            score_history:[...scoreHist].slice(-60)});
+  drawSimSkel(score);
 }
 
-// ── UI Update ──────────────────────────────────────────────────────────────
-function updateUI(data) {
-  const score = Math.round(data.score);
-  scoreHistory.push(score);
-  if (scoreHistory.length > 300) scoreHistory.shift();
-
-  // Score ring
-  const circumference = 226;
-  const offset = circumference - (score / 100) * circumference;
-  const ring = document.getElementById('scoreRingFill');
-  ring.style.strokeDashoffset = offset;
-
+// ── UI update ────────────────────────────────────────────────────────────
+function updateUI(d) {
+  const score = d.score;
+  scoreHist.push(score);
+  if (scoreHist.length > 600) scoreHist.shift();
   const color = scoreColor(score);
-  ring.style.stroke = color;
-  document.getElementById('scoreNum').textContent = score;
+
+  // Ring
+  const arc = document.getElementById('ringArc');
+  arc.style.strokeDashoffset = 201 - (score/100)*201;
+  arc.style.stroke = color;
+  document.getElementById('scoreNum').textContent = Math.round(score);
   document.getElementById('scoreNum').style.color = color;
 
   // Label
-  const label = score >= 85 ? 'Good Posture ✓' : score >= 65 ? 'Needs Attention' : 'Poor Posture!';
-  document.getElementById('postureLabel').textContent = label;
+  const lbl = score>=85 ? 'Good Posture ✓' : score>=65 ? 'Needs Attention' : 'Poor Posture!';
+  const sub = score>=85 ? 'Alignment is solid — keep it up!' : score>=65 ? 'Minor issues detected below.' : 'Significant problems. Adjust now!';
+  document.getElementById('postureLabel').textContent = lbl;
   document.getElementById('postureLabel').style.color = color;
-
-  const sub = score >= 85
-    ? 'Your posture is well-aligned. Keep it up!'
-    : score >= 65
-    ? 'Minor issues detected. See recommendations below.'
-    : 'Significant posture problems. Please adjust now.';
   document.getElementById('scoreSub').textContent = sub;
 
   // Metrics
-  if (data.metrics) {
-    const m = data.metrics;
-    setMetric('Forward', m.forward_deg, 40, '°');
-    setMetric('Shoulder', m.sh_tilt, 25, '%');
-    setMetric('Spine', m.spine_dev, 50, '°');
-    setMetric('Head', m.head_tilt, 20, '%');
+  if (d.metrics) {
+    setMet('Fwd', d.metrics.fwd_deg, 40);
+    setMet('Sh',  d.metrics.sh_tilt, 25);
+    setMet('Sp',  d.metrics.spine_d, 50);
+    setMet('Ht',  d.metrics.head_t,  20);
   }
 
   // Issues
-  const issueEl = document.getElementById('issuesList');
-  if (!data.issues || data.issues.length === 0) {
-    issueEl.innerHTML = '<div class="no-issues">No active issues — posture is aligned!</div>';
+  const il = document.getElementById('issueList');
+  if (!d.issues || !d.issues.length) {
+    il.innerHTML = '<div class="ok-msg">No active issues — well aligned!</div>';
   } else {
-    issueEl.innerHTML = data.issues.map(iss => `
-      <div class="issue-item">
-        <span class="issue-sev sev-${iss.severity}">${iss.severity}</span>
-        <div class="issue-body">
-          <div class="issue-name">${iss.issue} — ${iss.value}${iss.unit || ''}</div>
-          <div class="issue-fix">${iss.fix}</div>
-        </div>
-      </div>
-    `).join('');
+    il.innerHTML = d.issues.map(i =>
+      `<div class="issue"><span class="sev ${i.severity}">${i.severity}</span>
+       <div><div class="issue-name">${i.issue} &middot; ${i.value}${i.unit}</div>
+       <div class="issue-fix">${i.fix}</div></div></div>`
+    ).join('');
   }
 
   // Chart
-  if (data.score_history) drawChart(data.score_history);
-  else drawChart(scoreHistory.slice(-60));
+  drawSparkline(d.score_history || scoreHist.slice(-60));
+
+  // Voice coaching
+  const now = Date.now();
+  if (voiceOn && d.issues && d.issues.length && now - lastVoice > 18000) {
+    const top = d.issues[0];
+    speak(`${top.issue} detected. ${top.fix}`);
+    lastVoice = now;
+  }
+
+  // AI coach (every 20s when issues exist)
+  if (d.issues && d.issues.length && now - lastAi > 20000) {
+    lastAi = now;
+    askAI(score, d.issues);
+  }
 }
 
-function setMetric(name, val, maxVal, unit) {
-  const elVal = document.getElementById('m' + name);
-  const elBar = document.getElementById('bar' + name);
-  if (!elVal || !elBar) return;
-  elVal.textContent = val !== undefined ? val.toFixed(1) : '--';
-  const ratio = Math.min((val || 0) / maxVal, 1);
-  elBar.style.width = (ratio * 100) + '%';
-  const c = ratio < 0.4 ? 'var(--good)' : ratio < 0.7 ? 'var(--warn)' : 'var(--bad)';
-  elBar.style.background = c;
+function setMet(id, val, max) {
+  const v = document.getElementById('m'+id);
+  const b = document.getElementById('b'+id);
+  if (!v || !b || val === undefined) return;
+  v.textContent = Number(val).toFixed(1);
+  const r = Math.min(val/max, 1);
+  b.style.width = (r*100)+'%';
+  b.style.background = r<.4 ? 'var(--good)' : r<.7 ? 'var(--warn)' : 'var(--bad)';
 }
 
-function scoreColor(s) {
-  if (s >= 85) return '#00e5b0';
-  if (s >= 65) return '#ffb020';
-  return '#ff3c5c';
+// ── Break timer ──────────────────────────────────────────────────────────
+function updateBreakBar(nextBreakIn) {
+  const INTERVAL = 30 * 60; // 30 min
+  const elapsed = INTERVAL - (nextBreakIn || INTERVAL);
+  const pct = Math.min(elapsed / INTERVAL * 100, 100);
+  document.getElementById('breakBar').style.width = pct + '%';
+  const min = Math.floor((nextBreakIn||0) / 60);
+  const sec = (nextBreakIn||0) % 60;
+  document.getElementById('breakLabel').textContent =
+    nextBreakIn > 0 ? `Next break: ${min}m ${sec}s` : 'Break time! Stand up and stretch.';
 }
 
-// ── Session stats ──────────────────────────────────────────────────────────
-async function updateSessionStats() {
-  const elapsed = Math.round((Date.now() - sessionStartTime) / 1000);
-  document.getElementById('statDuration').textContent =
-    elapsed < 60 ? `${elapsed}s` : `${Math.floor(elapsed/60)}m${elapsed%60}s`;
-
+// ── Stats ────────────────────────────────────────────────────────────────
+async function updateStats() {
+  const elapsed = Math.round((Date.now() - sessStart) / 1000);
+  document.getElementById('stDur').textContent =
+    elapsed < 60 ? elapsed+'s' : Math.floor(elapsed/60)+'m'+elapsed%60+'s';
   try {
-    const resp = await fetch('/api/session');
-    if (resp.ok) {
-      const d = await resp.json();
-      document.getElementById('statAvg').textContent = d.avg_score || '--';
-      document.getElementById('statBadPct').textContent = (d.bad_posture_pct || 0) + '%';
+    const r = await fetch('/api/session?user='+activeUser);
+    if (r.ok) {
+      const d = await r.json();
+      document.getElementById('stAvg').textContent = d.avg_score || '--';
+      document.getElementById('stBad').textContent = (d.bad_posture_pct||0)+'%';
+      document.getElementById('stFrames').textContent = d.total_frames || 0;
     }
-  } catch {
-    // Demo mode stats
-    if (scoreHistory.length > 0) {
-      const avg = Math.round(scoreHistory.reduce((a,b) => a+b, 0) / scoreHistory.length);
-      document.getElementById('statAvg').textContent = avg;
-      const bad = Math.round(scoreHistory.filter(s => s < 70).length / scoreHistory.length * 100);
-      document.getElementById('statBadPct').textContent = bad + '%';
+  } catch(e) {
+    if (scoreHist.length) {
+      const avg = Math.round(scoreHist.reduce((a,b)=>a+b,0)/scoreHist.length);
+      document.getElementById('stAvg').textContent = avg;
+      document.getElementById('stBad').textContent = Math.round(scoreHist.filter(s=>s<70).length/scoreHist.length*100)+'%';
+      document.getElementById('stFrames').textContent = scoreHist.length;
     }
   }
 }
 
-async function resetSession() {
-  scoreHistory = [];
-  sessionStartTime = Date.now();
-  try { await fetch('/api/reset', { method: 'POST' }); } catch {}
-  document.getElementById('statAvg').textContent = '--';
-  document.getElementById('statBadPct').textContent = '--%';
+async function endSession() {
+  try {
+    const r = await fetch('/api/session/end?user='+activeUser, {method:'POST'});
+    if (r.ok) {
+      const d = await r.json();
+      if (d.new_milestones && d.new_milestones.length) {
+        showMilestone(d.new_milestones[0]);
+      }
+    }
+  } catch(e){}
+  stopCam();
 }
 
-// ── Chart ──────────────────────────────────────────────────────────────────
-function drawChart(history) {
-  const canvas = document.getElementById('scoreChartCanvas');
-  const { width, height } = canvas.getBoundingClientRect();
-  canvas.width = width * devicePixelRatio;
-  canvas.height = height * devicePixelRatio;
-  const ctx = canvas.getContext('2d');
-  ctx.scale(devicePixelRatio, devicePixelRatio);
+async function resetSess() {
+  try { await fetch('/api/reset?user='+activeUser, {method:'POST'}); } catch(e){}
+  scoreHist = []; smooth = 80;
+  document.getElementById('stAvg').textContent = '--';
+  document.getElementById('stBad').textContent = '--%';
+}
 
-  if (!history || history.length < 2) return;
+// ── Voice coaching ───────────────────────────────────────────────────────
+function toggleVoice() {
+  voiceOn = !voiceOn;
+  const chip = document.getElementById('voiceChip');
+  chip.classList.toggle('on', voiceOn);
+  document.getElementById('voiceLbl').textContent = voiceOn ? 'Voice on' : 'Voice off';
+  if (voiceOn) speak('Voice coaching enabled. I will alert you when posture issues are detected.');
+}
 
-  const w = width, h = height;
-  const pad = { top: 8, bottom: 8, left: 4, right: 4 };
-  const cw = w - pad.left - pad.right;
-  const ch = h - pad.top - pad.bottom;
+function speak(text) {
+  if (!voiceOn || !window.speechSynthesis) return;
+  window.speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(text);
+  u.rate = 0.95; u.pitch = 1; u.volume = 0.85;
+  window.speechSynthesis.speak(u);
+}
 
-  ctx.clearRect(0, 0, w, h);
+// ── Mode toggle ──────────────────────────────────────────────────────────
+async function setMode(mode) {
+  currentMode = mode;
+  document.getElementById('modeSeated').classList.toggle('active', mode==='seated');
+  document.getElementById('modeStanding').classList.toggle('active', mode==='standing');
+  document.getElementById('sidebarMode').textContent = mode + ' mode';
+  try {
+    await fetch('/api/mode', {method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({mode, user: activeUser})});
+  } catch(e){}
+  if (voiceOn) speak(mode === 'standing' ? 'Switched to standing desk mode.' : 'Switched to seated mode.');
+}
 
-  // Grid lines
-  [65, 85].forEach(v => {
-    const y = pad.top + ch - (v / 100) * ch;
-    ctx.strokeStyle = v === 85 ? 'rgba(0,229,176,0.12)' : 'rgba(255,60,92,0.12)';
-    ctx.lineWidth = 1;
-    ctx.setLineDash([4, 4]);
-    ctx.beginPath();
-    ctx.moveTo(pad.left, y);
-    ctx.lineTo(pad.left + cw, y);
-    ctx.stroke();
+// ── Toast alerts ─────────────────────────────────────────────────────────
+let toastTimer;
+function showToast(title, msg, type) {
+  const toast = document.getElementById('alertToast');
+  document.getElementById('toastTitle').textContent = title;
+  document.getElementById('toastMsg').textContent = msg;
+  toast.style.borderColor = type==='bad_posture' ? 'rgba(255,60,92,.4)' : 'rgba(0,229,176,.3)';
+  toast.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(dismissToast, 8000);
+  if (voiceOn) speak(msg);
+  // Sync to OBS
+  try { localStorage.setItem('pg_alert', msg); } catch(e){}
+}
+function dismissToast() {
+  document.getElementById('alertToast').classList.remove('show');
+}
+
+// ── Sparkline chart ───────────────────────────────────────────────────────
+function drawSparkline(hist) {
+  const cvs = document.getElementById('chartCvs');
+  const rect = cvs.getBoundingClientRect();
+  const dpr = window.devicePixelRatio || 1;
+  cvs.width = rect.width*dpr; cvs.height = rect.height*dpr;
+  const ctx = cvs.getContext('2d');
+  ctx.scale(dpr, dpr);
+  const W=rect.width, H=rect.height, P={t:6,b:6,l:4,r:4};
+  if (!hist || hist.length < 2) return;
+  ctx.clearRect(0,0,W,H);
+  const cw=W-P.l-P.r, ch=H-P.t-P.b;
+  // Grid
+  [65,85].forEach(v => {
+    const y=P.t+ch-(v/100)*ch;
+    ctx.strokeStyle=v===85?'rgba(0,229,176,.1)':'rgba(255,60,92,.1)';
+    ctx.lineWidth=1; ctx.setLineDash([3,3]);
+    ctx.beginPath(); ctx.moveTo(P.l,y); ctx.lineTo(P.l+cw,y); ctx.stroke();
     ctx.setLineDash([]);
   });
-
-  // Fill area
-  const grad = ctx.createLinearGradient(0, pad.top, 0, pad.top + ch);
-  grad.addColorStop(0, 'rgba(0,229,176,0.25)');
-  grad.addColorStop(1, 'rgba(0,229,176,0.01)');
-
+  // Fill
+  const grad=ctx.createLinearGradient(0,P.t,0,P.t+ch);
+  grad.addColorStop(0,'rgba(0,229,176,.18)'); grad.addColorStop(1,'rgba(0,229,176,.01)');
   ctx.beginPath();
-  history.forEach((val, i) => {
-    const x = pad.left + (i / (history.length - 1)) * cw;
-    const y = pad.top + ch - (Math.min(val, 100) / 100) * ch;
-    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  hist.forEach((v,i) => {
+    const x=P.l+i/(hist.length-1)*cw, y=P.t+ch-(Math.min(v,100)/100)*ch;
+    i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);
   });
-  const lastX = pad.left + cw;
-  const lastY = pad.top + ch;
-  ctx.lineTo(lastX, lastY);
-  ctx.lineTo(pad.left, lastY);
-  ctx.closePath();
-  ctx.fillStyle = grad;
-  ctx.fill();
-
+  ctx.lineTo(P.l+cw,P.t+ch); ctx.lineTo(P.l,P.t+ch); ctx.closePath();
+  ctx.fillStyle=grad; ctx.fill();
   // Line
-  ctx.beginPath();
-  ctx.strokeStyle = '#00e5b0';
-  ctx.lineWidth = 1.5;
-  ctx.lineJoin = 'round';
-  history.forEach((val, i) => {
-    const x = pad.left + (i / (history.length - 1)) * cw;
-    const y = pad.top + ch - (Math.min(val, 100) / 100) * ch;
-    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  ctx.beginPath(); ctx.strokeStyle='#00e5b0'; ctx.lineWidth=1.5; ctx.lineJoin='round';
+  hist.forEach((v,i) => {
+    const x=P.l+i/(hist.length-1)*cw, y=P.t+ch-(Math.min(v,100)/100)*ch;
+    i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);
   });
   ctx.stroke();
 }
 
-// ── Skeleton overlay ───────────────────────────────────────────────────────
-function drawSkeleton(keypoints, connections, score, vw, vh) {
-  const canvas = document.getElementById('skeletonCanvas');
-  const wrap = document.getElementById('cameraWrap');
-  canvas.width  = wrap.offsetWidth;
-  canvas.height = wrap.offsetHeight;
-  const ctx = canvas.getContext('2d');
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-  const sx = canvas.width  / vw;
-  const sy = canvas.height / vh;
-  const color = scoreColor(score);
-
-  // Connections
-  if (connections) {
-    connections.forEach(([a, b]) => {
-      const ka = keypoints[a], kb = keypoints[b];
-      if (!ka || !kb || ka.visibility < 0.3 || kb.visibility < 0.3) return;
-      ctx.beginPath();
-      ctx.strokeStyle = color + 'bb';
-      ctx.lineWidth = 2.5;
-      ctx.moveTo(ka.x * vw * sx, ka.y * vh * sy);
-      ctx.lineTo(kb.x * vw * sx, kb.y * vh * sy);
-      ctx.stroke();
-    });
+// ── Trend chart (8 weeks) ─────────────────────────────────────────────────
+async function loadTrends() {
+  try {
+    const r = await fetch('/api/trends/'+activeUser+'?weeks=8');
+    const data = await r.json();
+    drawTrend(data);
+    // Weekly table
+    const tbl = document.getElementById('weeklyTable');
+    tbl.innerHTML = data.map(w =>
+      `<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border)">
+        <span style="color:var(--text)">${w.label}</span>
+        <span style="font-family:'Space Mono',monospace;color:${w.avg_score?scoreColor(w.avg_score):'var(--muted)'}">
+          ${w.avg_score ? w.avg_score : 'No data'} ${w.sessions ? '('+w.sessions+' sess.)' : ''}</span>
+      </div>`
+    ).join('');
+    // All-time
+    const sr = await fetch('/api/streaks/'+activeUser);
+    const sd = await sr.json();
+    const sum = sd.summary;
+    document.getElementById('allTimeStats').innerHTML =
+      `<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:4px">
+        <div class="stat"><div class="stat-v">${sum.total_sessions}</div><div class="stat-l">Sessions</div></div>
+        <div class="stat"><div class="stat-v">${Math.round(sum.total_duration/3600*10)/10}h</div><div class="stat-l">Total Time</div></div>
+        <div class="stat"><div class="stat-v">${sum.best_score}</div><div class="stat-l">Best Score</div></div>
+        <div class="stat"><div class="stat-v">${sum.milestones_count}</div><div class="stat-l">Milestones</div></div>
+      </div>`;
+  } catch(e) {
+    document.getElementById('weeklyTable').textContent = 'No data yet — complete some sessions first.';
   }
+}
 
-  // Points
-  keypoints.forEach((kp, i) => {
-    if (kp.visibility < 0.4) return;
-    const x = kp.x * vw * sx;
-    const y = kp.y * vh * sy;
-    ctx.beginPath();
-    ctx.arc(x, y, 4, 0, Math.PI * 2);
-    ctx.fillStyle = color;
-    ctx.fill();
+function drawTrend(data) {
+  const cvs = document.getElementById('trendCvs');
+  const rect = cvs.getBoundingClientRect();
+  const dpr = window.devicePixelRatio||1;
+  cvs.width=rect.width*dpr; cvs.height=rect.height*dpr;
+  const ctx=cvs.getContext('2d'); ctx.scale(dpr,dpr);
+  const W=rect.width, H=rect.height, P={t:10,b:24,l:8,r:8};
+  const cw=W-P.l-P.r, ch=H-P.t-P.b;
+  ctx.clearRect(0,0,W,H);
+  // Gridlines
+  [0,25,50,65,75,85,100].forEach(v => {
+    const y=P.t+ch-(v/100)*ch;
+    ctx.strokeStyle='rgba(255,255,255,.04)'; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.moveTo(P.l,y); ctx.lineTo(P.l+cw,y); ctx.stroke();
+    ctx.font='9px Space Mono,monospace'; ctx.fillStyle='rgba(74,106,134,.6)';
+    ctx.fillText(v, P.l-2, y+3);
+  });
+  const valid = data.filter(d => d.avg_score !== null);
+  if (valid.length < 2) {
+    ctx.font='12px Syne,sans-serif'; ctx.fillStyle='rgba(74,106,134,.8)';
+    ctx.fillText('No data yet — complete some sessions', P.l+10, H/2);
+    return;
+  }
+  const n=data.length;
+  const xs=data.map((_,i)=>P.l+i/(n-1)*cw);
+  // Bars for sessions
+  data.forEach((d,i) => {
+    if (d.sessions > 0) {
+      const bh=Math.min(d.sessions*6, 20);
+      ctx.fillStyle='rgba(0,229,176,.08)';
+      ctx.fillRect(xs[i]-8, H-P.b-bh, 16, bh);
+    }
+  });
+  // Gradient fill
+  const pts=valid.map(d=>{const i=data.indexOf(d); return{x:xs[i],y:P.t+ch-(d.avg_score/100)*ch};});
+  const grad=ctx.createLinearGradient(0,P.t,0,P.t+ch);
+  grad.addColorStop(0,'rgba(0,229,176,.22)'); grad.addColorStop(1,'rgba(0,229,176,.01)');
+  ctx.beginPath(); ctx.moveTo(pts[0].x, P.t+ch);
+  pts.forEach(p=>ctx.lineTo(p.x,p.y));
+  ctx.lineTo(pts[pts.length-1].x, P.t+ch); ctx.closePath();
+  ctx.fillStyle=grad; ctx.fill();
+  // Line
+  ctx.beginPath(); ctx.strokeStyle='#00e5b0'; ctx.lineWidth=2; ctx.lineJoin='round';
+  pts.forEach((p,i)=>i===0?ctx.moveTo(p.x,p.y):ctx.lineTo(p.x,p.y)); ctx.stroke();
+  // Dots + labels
+  data.forEach((d,i) => {
+    const x=xs[i], y=d.avg_score ? P.t+ch-(d.avg_score/100)*ch : null;
+    if (y) {
+      ctx.beginPath(); ctx.arc(x,y,4,0,Math.PI*2);
+      ctx.fillStyle=scoreColor(d.avg_score); ctx.fill();
+    }
+    ctx.font='8px Space Mono,monospace'; ctx.fillStyle='rgba(74,106,134,.7)';
+    ctx.fillText(d.label||'', x-14, H-2);
   });
 }
 
-function drawDemoSkeleton(score) {
-  const canvas = document.getElementById('skeletonCanvas');
-  const wrap = document.getElementById('cameraWrap');
-  canvas.width  = wrap.offsetWidth;
-  canvas.height = wrap.offsetHeight;
-  const ctx = canvas.getContext('2d');
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
+// ── Streaks & Milestones ─────────────────────────────────────────────────
+const MILESTONE_ICONS = {
+  star:'⭐',fire:'🔥',trophy:'🏆',bolt:'⚡',flame:'🔥',crown:'👑',
+  check:'✅',diamond:'💎',clock:'⏰',medal:'🏅'
+};
 
-  const w = canvas.width, h = canvas.height;
-  const cx = w * 0.5;
+async function loadStreaks() {
+  try {
+    const r = await fetch('/api/streaks/'+activeUser);
+    const d = await r.json();
+    const streak = d.streak;
+    document.getElementById('streakNum').textContent = streak.current;
+    document.getElementById('streakSub').textContent =
+      streak.current > 0 ? `Best: ${streak.best} days${streak.today_done?' · Today done ✓':''}` :
+      'Complete a session with avg score ≥ 75 to start';
+    const sum = d.summary;
+    document.getElementById('bestStreak').textContent = streak.best;
+    document.getElementById('totalSessions').textContent = sum.total_sessions;
+    document.getElementById('totalHours').textContent = Math.round(sum.total_duration/3600*10)/10+'h';
+    document.getElementById('bestScore').textContent = sum.best_score;
+    // Milestones
+    const ml = document.getElementById('milestoneList');
+    ml.innerHTML = d.milestones.map(m =>
+      `<div class="milestone ${m.unlocked?'unlocked':''}">
+        <div class="milestone-icon">${MILESTONE_ICONS[m.icon]||'🎯'}</div>
+        <div style="flex:1">
+          <div class="milestone-name">${m.name}</div>
+          <div class="milestone-desc">${m.desc}</div>
+        </div>
+        <div class="milestone-badge">${m.unlocked ? '✓ Done' : 'Locked'}</div>
+      </div>`
+    ).join('');
+  } catch(e) {
+    document.getElementById('milestoneList').textContent = 'No data yet.';
+  }
+}
+
+function showMilestone(m) {
+  document.getElementById('mIcon').textContent = MILESTONE_ICONS[m.icon]||'🏆';
+  document.getElementById('mName').textContent = m.name;
+  document.getElementById('mDesc').textContent = m.desc;
+  document.getElementById('milestoneModal').classList.add('open');
+}
+
+// ── 7-Day Plan ────────────────────────────────────────────────────────────
+async function loadPlan() {
+  try {
+    const r = await fetch('/api/plan/'+activeUser);
+    const plan = await r.json();
+    if (plan && plan.days) renderPlan(plan);
+  } catch(e){}
+}
+
+async function generatePlan() {
+  const btn = document.getElementById('genPlanBtn');
+  btn.textContent = '⏳ Generating…'; btn.disabled = true;
+  document.getElementById('planContent').innerHTML =
+    '<div style="padding:20px;text-align:center;color:var(--muted);font-size:.8rem">Calling AI coach — this takes a few seconds…<br><span class="cursor"></span></div>';
+  try {
+    const r = await fetch('/api/plan/'+activeUser+'/generate', {method:'POST'});
+    const plan = await r.json();
+    renderPlan(plan);
+  } catch(e) {
+    document.getElementById('planContent').innerHTML =
+      '<div style="padding:20px;text-align:center;color:var(--bad);font-size:.8rem">Failed to generate plan. Check API connection.</div>';
+  }
+  btn.textContent = '✨ Regenerate'; btn.disabled = false;
+}
+
+function renderPlan(plan) {
+  const src = plan.source === 'ai' ? '🤖 AI-generated' : '📋 Default plan';
+  document.getElementById('planContent').innerHTML =
+    `<div style="margin-bottom:14px">
+      <div style="font-size:1rem;font-weight:700;color:var(--text);margin-bottom:4px">${plan.title||''}</div>
+      <div style="font-size:.74rem;color:var(--muted);line-height:1.6;margin-bottom:4px">${plan.overview||''}</div>
+      <div style="font-size:.62rem;color:var(--muted);font-family:'Space Mono',monospace">${src}</div>
+    </div>` +
+    (plan.days||[]).map(d =>
+      `<div class="day-card">
+        <div class="day-num">Day ${d.day}</div>
+        <div class="day-theme">${d.theme}</div>
+        <div class="day-item"><div class="day-item-lbl">Morning</div><div class="day-item-val">${d.morning}</div></div>
+        <div class="day-item"><div class="day-item-lbl">Exercise</div><div class="day-item-val">${d.exercise}</div></div>
+        <div class="day-item"><div class="day-item-lbl">Desk tip</div><div class="day-item-val">${d.desk_tip}</div></div>
+        <div class="day-item"><div class="day-item-lbl">Evening</div><div class="day-item-val">${d.evening}</div></div>
+      </div>`
+    ).join('');
+}
+
+// ── Challenges ────────────────────────────────────────────────────────────
+async function createChallenge() {
+  try {
+    const r = await fetch('/api/challenges/create', {method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({user:activeUser})});
+    const ch = await r.json();
+    document.getElementById('roomCode').textContent = ch.room_id;
+    document.getElementById('createdRoom').style.display = '';
+    activeChallenge = ch.room_id;
+    pollLeaderboard(ch.room_id);
+  } catch(e) { alert('Could not create challenge: ' + e.message); }
+}
+
+async function joinChallenge() {
+  const code = document.getElementById('joinCodeInput').value.toUpperCase().trim();
+  if (!code || code.length < 4) { alert('Enter a valid room code'); return; }
+  try {
+    const r = await fetch('/api/challenges/join', {method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({room_id:code, user:activeUser})});
+    if (!r.ok) { alert('Room not found or expired.'); return; }
+    activeChallenge = code;
+    pollLeaderboard(code);
+  } catch(e) { alert('Join failed: '+e.message); }
+}
+
+let lbInterval;
+function pollLeaderboard(roomId) {
+  clearInterval(lbInterval);
+  updateLeaderboard(roomId);
+  lbInterval = setInterval(() => updateLeaderboard(roomId), 5000);
+}
+
+async function updateLeaderboard(roomId) {
+  try {
+    const r = await fetch('/api/challenges/'+roomId);
+    const d = await r.json();
+    const lb = d.leaderboard || [];
+    const expires = d.expires_at ? new Date(d.expires_at*1000) : null;
+    document.getElementById('leaderboard').innerHTML = lb.length === 0 ?
+      '<div style="font-size:.76rem;color:var(--muted);padding:8px">Waiting for participants…</div>' :
+      lb.map(p => {
+        const rankColors = {1:'var(--warn)',2:'var(--muted)',3:'var(--accent2)'};
+        return `<div class="leaderboard-row">
+          <div class="lb-rank" style="color:${rankColors[p.rank]||'var(--muted)'}">${['🥇','🥈','🥉'][p.rank-1]||p.rank}</div>
+          <div class="lb-name">${p.name}</div>
+          <div>
+            <div class="lb-score" style="color:${scoreColor(p.avg_score)}">${p.avg_score}</div>
+            <div class="lb-samples">${p.samples} samples</div>
+          </div>
+        </div>`;
+      }).join('');
+    document.getElementById('challengeStatus').textContent =
+      expires ? `Room: ${roomId} · Expires: ${expires.toLocaleTimeString()}` : '';
+  } catch(e){}
+}
+
+// ── Calibration Wizard ────────────────────────────────────────────────────
+let calPoseOrder = ['ideal','forward','slouch'];
+let calCurrentPose = 0, calActive = false, calInterval = null;
+
+async function startCalibration() {
+  if (!running) { alert('Start the camera first from Live Analysis.'); return; }
+  document.getElementById('calStartBtn').textContent = '⏳ Running…';
+  document.getElementById('calStartBtn').disabled = true;
+  try {
+    await fetch('/api/calibration/start?user='+activeUser, {method:'POST'});
+  } catch(e){}
+  calCurrentPose = 0; calActive = true;
+  runCalPose();
+}
+
+function runCalPose() {
+  if (calCurrentPose >= calPoseOrder.length) { finishCalibration(); return; }
+  const poseId = calPoseOrder[calCurrentPose];
+  const step = document.getElementById('calStep-' + poseId);
+  step.classList.add('active-step');
+  document.getElementById('calStatus').textContent = 'Hold the ' + poseId + ' pose…';
+  let frames = 0;
+  calInterval = setInterval(async () => {
+    if (!running || !offCvs) return;
+    const b64 = offCvs.toDataURL('image/jpeg', 0.6);
+    try {
+      const r = await fetch('/api/calibration/capture', {method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({user:activeUser, pose_id:poseId, frame:b64})});
+      const d = await r.json();
+      if (d.detected) {
+        frames = d.frames_captured || frames+1;
+        const pct = Math.min(frames/15*100, 100);
+        document.getElementById('calBar-'+poseId).style.width = pct+'%';
+        if (d.ready) {
+          clearInterval(calInterval);
+          step.classList.remove('active-step');
+          step.classList.add('done-step');
+          await fetch('/api/calibration/complete_pose', {method:'POST',
+            headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({user:activeUser, pose_id:poseId})});
+          calCurrentPose++;
+          setTimeout(runCalPose, 800);
+        }
+      }
+    } catch(e){}
+  }, 200);
+}
+
+async function finishCalibration() {
+  try {
+    const r = await fetch('/api/calibration/finish?user='+activeUser, {method:'POST'});
+    const d = await r.json();
+    document.getElementById('calStatus').textContent = '✓ Calibration saved!';
+    document.getElementById('calStatusCard').innerHTML =
+      '<span style="color:var(--good)">✓ Calibrated</span> — using your personal thresholds';
+    loadThresholds();
+    showToast('Calibration complete', 'Your personal posture thresholds have been saved.', 'success');
+  } catch(e){}
+  document.getElementById('calStartBtn').textContent = '🎯 Re-Calibrate';
+  document.getElementById('calStartBtn').disabled = false;
+  calActive = false;
+}
+
+async function loadThresholds() {
+  try {
+    const r = await fetch('/api/calibration/'+activeUser);
+    const T = await r.json();
+    const el = document.getElementById('thresholdDisplay');
+    const names = {neck_forward:'Forward Head',shoulder_tilt:'Shoulder Tilt',
+                   spine_curve:'Spine Curve',head_tilt:'Head Tilt'};
+    el.innerHTML = Object.entries(names).map(([k,n]) =>
+      `<div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--border)">
+        <span style="color:var(--muted);font-size:.76rem">${n}</span>
+        <span style="font-family:'Space Mono',monospace;font-size:.76rem;color:var(--accent2)">${T[k]||'--'}${k.includes('tilt')||k.includes('head_tilt')?'%':'°'}</span>
+      </div>`
+    ).join('') +
+    (T.calibrated_at ? `<div style="font-size:.62rem;color:var(--muted);margin-top:6px;font-family:'Space Mono',monospace">Calibrated: ${new Date(T.calibrated_at*1000).toLocaleDateString()}</div>` : '');
+    if (T.calibrated_at) {
+      document.getElementById('calStatusCard').innerHTML =
+        '<span style="color:var(--good)">✓ Calibrated</span> — using your personal thresholds';
+    }
+  } catch(e) {
+    document.getElementById('thresholdDisplay').textContent = 'Failed to load thresholds.';
+  }
+}
+
+// ── User profiles ─────────────────────────────────────────────────────────
+async function loadProfiles() {
+  try {
+    const r = await fetch('/api/profiles');
+    const profiles = await r.json();
+    const el = document.getElementById('profileList');
+    el.innerHTML = profiles.map(p =>
+      `<div style="display:flex;align-items:center;gap:10px;padding:10px;background:var(--bg3);
+        border:1px solid ${p.id===activeUser?'rgba(0,229,176,.3)':'var(--border)'};
+        border-radius:8px;margin-bottom:8px;cursor:pointer;transition:border-color .2s"
+        onclick="switchProfile('${p.id}','${p.name}','${p.color}')">
+        <div class="avatar" style="background:${p.color}">${p.name[0].toUpperCase()}</div>
+        <div style="flex:1">
+          <div style="font-size:.82rem;font-weight:700;color:var(--text)">${p.name}</div>
+          <div style="font-size:.65rem;color:var(--muted);font-family:'Space Mono',monospace">${p.id}${p.id===activeUser?' · active':''}</div>
+        </div>
+        ${p.id===activeUser?'<div style="font-size:.65rem;color:var(--accent);font-family:Space Mono,monospace">ACTIVE</div>':''}
+        ${p.id!=='default'?`<button class="btn btn-danger btn-sm" onclick="event.stopPropagation();deleteProfile('${p.id}')">✕</button>`:''}
+      </div>`
+    ).join('');
+  } catch(e) {
+    document.getElementById('profileList').textContent = 'Failed to load profiles.';
+  }
+}
+
+async function switchProfile(uid, name, color) {
+  activeUser = uid;
+  document.getElementById('sidebarName').textContent = name;
+  document.getElementById('sidebarAvatar').textContent = name[0].toUpperCase();
+  document.getElementById('sidebarAvatar').style.background = color;
+  try {
+    await fetch('/api/profiles/switch', {method:'POST',
+      headers:{'Content-Type':'application/json'}, body:JSON.stringify({user:uid})});
+  } catch(e){}
+  loadProfiles();
+  document.getElementById('activeProfileDetail').innerHTML =
+    `<div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+      <div class="avatar" style="background:${color};width:40px;height:40px;font-size:1rem">${name[0].toUpperCase()}</div>
+      <div><div style="font-size:.95rem;font-weight:700">${name}</div>
+      <div style="font-size:.68rem;color:var(--muted);font-family:'Space Mono',monospace">${uid}</div></div>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-o btn-sm" onclick="showPanel('calibration')">🎯 Calibrate</button>
+      <button class="btn btn-o btn-sm" onclick="showPanel('plan')">📅 View Plan</button>
+    </div>`;
+}
+
+function openNewProfileModal() {
+  document.getElementById('newProfileModal').classList.add('open');
+}
+
+async function submitNewProfile() {
+  const name = document.getElementById('newProfileName').value.trim();
+  const id   = document.getElementById('newProfileId').value.trim().toLowerCase().replace(/\s+/g,'_');
+  if (!name || !id) { alert('Please fill in both fields'); return; }
+  try {
+    await fetch('/api/profiles', {method:'POST',
+      headers:{'Content-Type':'application/json'}, body:JSON.stringify({id,name})});
+    closeModal('newProfileModal');
+    loadProfiles();
+    document.getElementById('newProfileName').value = '';
+    document.getElementById('newProfileId').value = '';
+  } catch(e) { alert('Failed to create profile: '+e.message); }
+}
+
+async function deleteProfile(uid) {
+  if (!confirm('Delete profile "'+uid+'"? This cannot be undone.')) return;
+  try {
+    await fetch('/api/profiles/'+uid, {method:'DELETE'});
+    if (activeUser === uid) {
+      activeUser = 'default';
+      document.getElementById('sidebarName').textContent = 'You';
+    }
+    loadProfiles();
+  } catch(e){}
+}
+
+// ── PDF Report ────────────────────────────────────────────────────────────
+function downloadReport() {
+  window.open('/api/report/'+activeUser, '_blank');
+}
+
+// ── AI Coach ──────────────────────────────────────────────────────────────
+async function askAI(score, issues) {
+  const el = document.getElementById('aiText');
+  const issStr = issues.map(i => `${i.issue} (${i.value}${i.unit}, ${i.severity})`).join(', ');
+  const prompt = `Posture score: ${Math.round(score)}/100. Issues: ${issStr||'none'}. Give ONE specific 2-sentence tip. No greeting. Be direct.`;
+  el.innerHTML = 'Analysing<span class="cursor"></span>';
+  try {
+    // Route through Flask — keeps API key server-side and never exposed to browser
+    const r = await fetch('/api/ai_coach', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({prompt, user: activeUser})
+    });
+    const d = await r.json();
+    typeText(el, d.tip || getFallbackTip());
+  } catch(e) { typeText(el, getFallbackTip()); }
+}
+
+const TIPS = [
+  "Roll your shoulders back and down — this instantly resets your upper back and can add 8-10 points.",
+  "Tuck chin slightly and hold 5 seconds. This strengthens deep neck flexors and resets forward head.",
+  "Place feet flat on the floor — it naturally aligns your pelvis and improves your whole spine.",
+  "Imagine a string from the crown of your head gently pulling you upward — this is the fastest posture reset.",
+  "Take 3 deep breaths and let each exhale naturally reset your spine to a neutral, tall position.",
+];
+function getFallbackTip() { return TIPS[Math.floor(Math.random()*TIPS.length)]; }
+
+function typeText(el, text) {
+  el.textContent = '';
+  let i = 0;
+  const t = setInterval(() => { el.textContent += text[i++]; if(i>=text.length) clearInterval(t); }, 20);
+}
+
+// ── Skeleton drawing ──────────────────────────────────────────────────────
+function drawSkel(kps, conns, score, vw, vh) {
+  const cvs = document.getElementById('skelCanvas');
+  const wrap = document.getElementById('camWrap');
+  cvs.width = wrap.offsetWidth; cvs.height = wrap.offsetHeight;
+  const ctx = cvs.getContext('2d');
+  ctx.clearRect(0,0,cvs.width,cvs.height);
+  const sx=cvs.width/vw, sy=cvs.height/vh;
   const color = scoreColor(score);
-
-  // Simplified stick figure
-  const sway = score < 70 ? (w * 0.04) : 0;
-  const hunch = score < 75 ? (h * 0.03) : 0;
-
-  const pts = {
-    head:  [cx + sway * 0.5, h * 0.18],
-    neck:  [cx + sway * 0.3, h * 0.27],
-    lsh:   [cx - w*0.1 + sway, h * 0.32 - hunch],
-    rsh:   [cx + w*0.1 + sway, h * 0.32 + hunch],
-    spine: [cx + sway * 0.2, h * 0.5],
-    lhip:  [cx - w*0.07, h * 0.58],
-    rhip:  [cx + w*0.07, h * 0.58],
-  };
-
-  const lines = [
-    [pts.head, pts.neck],
-    [pts.neck, pts.lsh],
-    [pts.neck, pts.rsh],
-    [pts.neck, pts.spine],
-    [pts.spine, pts.lhip],
-    [pts.spine, pts.rhip],
-    [pts.lhip, pts.rhip],
-  ];
-
-  ctx.strokeStyle = color + 'cc';
-  ctx.lineWidth = 3;
-  ctx.lineCap = 'round';
-
-  lines.forEach(([a, b]) => {
-    ctx.beginPath();
-    ctx.moveTo(a[0], a[1]);
-    ctx.lineTo(b[0], b[1]);
-    ctx.stroke();
+  if (conns) conns.forEach(([a,b]) => {
+    const ka=kps[a],kb=kps[b];
+    if (!ka||!kb||ka.visibility<.3||kb.visibility<.3) return;
+    ctx.strokeStyle=color+'aa'; ctx.lineWidth=2.5; ctx.lineCap='round';
+    ctx.beginPath(); ctx.moveTo(ka.x*vw*sx,ka.y*vh*sy); ctx.lineTo(kb.x*vw*sx,kb.y*vh*sy); ctx.stroke();
   });
-
-  // Joints
-  Object.values(pts).forEach(([x, y]) => {
-    ctx.beginPath();
-    ctx.arc(x, y, 5, 0, Math.PI * 2);
-    ctx.fillStyle = color;
-    ctx.fill();
+  kps.forEach(p => {
+    if (p.visibility < .4) return;
+    ctx.beginPath(); ctx.arc(p.x*vw*sx,p.y*vh*sy,4,0,Math.PI*2);
+    ctx.fillStyle=color; ctx.fill();
   });
 }
 
-// ── Tips ───────────────────────────────────────────────────────────────────
-function rotateTip() {
-  tipIndex = (tipIndex + 1) % TIPS.length;
-  const el = document.getElementById('tipText');
-  el.style.opacity = 0;
-  setTimeout(() => { el.textContent = TIPS[tipIndex]; el.style.opacity = 1; }, 300);
+function drawSimSkel(score) {
+  const cvs=document.getElementById('skelCanvas');
+  const wrap=document.getElementById('camWrap');
+  cvs.width=wrap.offsetWidth; cvs.height=wrap.offsetHeight;
+  const ctx=cvs.getContext('2d'); ctx.clearRect(0,0,cvs.width,cvs.height);
+  const W=cvs.width,H=cvs.height,cx=W*.5,color=scoreColor(score);
+  const sw=score<70?W*.04:0, hu=score<75?H*.03:0;
+  const P={head:[cx+sw*.5,H*.17],neck:[cx+sw*.3,H*.26],
+    lsh:[cx-W*.11+sw,H*.31-hu],rsh:[cx+W*.11+sw,H*.31+hu],
+    sp:[cx+sw*.2,H*.48],lh:[cx-W*.08,H*.57],rh:[cx+W*.08,H*.57]};
+  [[P.head,P.neck],[P.neck,P.lsh],[P.neck,P.rsh],[P.neck,P.sp],
+   [P.sp,P.lh],[P.sp,P.rh],[P.lh,P.rh]].forEach(([a,b])=>{
+    ctx.strokeStyle=color+'cc'; ctx.lineWidth=3; ctx.lineCap='round';
+    ctx.beginPath(); ctx.moveTo(a[0],a[1]); ctx.lineTo(b[0],b[1]); ctx.stroke();
+  });
+  ctx.fillStyle=color;
+  Object.values(P).forEach(([x,y])=>{ctx.beginPath();ctx.arc(x,y,5,0,Math.PI*2);ctx.fill();});
 }
 
-// ── Guide modal ────────────────────────────────────────────────────────────
-function openGuide()  { document.getElementById('guideModal').classList.add('open'); }
-function closeGuide() { document.getElementById('guideModal').classList.remove('open'); }
-document.getElementById('guideModal').addEventListener('click', e => {
-  if (e.target === document.getElementById('guideModal')) closeGuide();
+function clearSkel() {
+  const c=document.getElementById('skelCanvas');
+  c.getContext('2d').clearRect(0,0,c.width,c.height);
+}
+
+// ── Modals ────────────────────────────────────────────────────────────────
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+document.querySelectorAll('.modal-back').forEach(m => {
+  m.addEventListener('click', e => { if(e.target===m) m.classList.remove('open'); });
 });
 
-// ── Resize chart on window resize ─────────────────────────────────────────
-window.addEventListener('resize', () => { if (scoreHistory.length) drawChart(scoreHistory.slice(-60)); });
+// ── Init ──────────────────────────────────────────────────────────────────
+(async function init() {
+  // Load active profile
+  try {
+    const r = await fetch('/api/profiles');
+    const profiles = await r.json();
+    if (profiles.length) {
+      const p = profiles[0];
+      activeUser = p.id;
+      document.getElementById('sidebarName').textContent = p.name;
+      document.getElementById('sidebarAvatar').textContent = p.name[0].toUpperCase();
+      document.getElementById('sidebarAvatar').style.background = p.color || '#5DCAA5';
+      document.getElementById('sidebarMode').textContent = (p.mode||'seated') + ' mode';
+    }
+  } catch(e){}
+  // Draw empty sparkline
+  setTimeout(() => drawSparkline([50,52,50]), 300);
+  // Poll alerts every 5s when running
+  setInterval(async () => {
+    if (!running) return;
+    try {
+      const r = await fetch('/api/alerts/poll');
+      const d = await r.json();
+      if (d.alert) showToast(d.alert.title, d.alert.message, d.alert.type);
+      updateBreakBar(d.next_break_in);
+    } catch(e){}
+  }, 5000);
+})();
 
-// ── Init: start demo animation when page loads ─────────────────────────────
-setTimeout(() => {
-  // Draw empty chart axes
-  drawChart([50, 50]);
-}, 300);
+window.addEventListener('resize', () => {
+  if (scoreHist.length) drawSparkline(scoreHist.slice(-60));
+});
+
+// ── Auth ──────────────────────────────────────────────────────────────────
+function authTab(tab) {
+  const isLogin = tab === 'login';
+  document.getElementById('loginForm').style.display  = isLogin ? '' : 'none';
+  document.getElementById('signupForm').style.display = isLogin ? 'none' : '';
+  document.getElementById('tabLogin').style.background  = isLogin ? 'var(--accent)' : 'transparent';
+  document.getElementById('tabLogin').style.color       = isLogin ? '#000' : 'var(--muted)';
+  document.getElementById('tabSignup').style.background = isLogin ? 'transparent' : 'var(--accent)';
+  document.getElementById('tabSignup').style.color      = isLogin ? 'var(--muted)' : '#000';
+}
+
+async function doLogin() {
+  const username = document.getElementById('loginUser').value.trim();
+  const password = document.getElementById('loginPass').value;
+  document.getElementById('loginError').textContent = '';
+  if (!username || !password) { document.getElementById('loginError').textContent = 'Fill in all fields'; return; }
+  try {
+    const r = await fetch('/auth/login', {method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({username, password})});
+    const d = await r.json();
+    if (d.ok) {
+      activeUser = d.user_id;
+      document.getElementById('sidebarName').textContent = d.display_name;
+      document.getElementById('sidebarAvatar').textContent = d.display_name[0].toUpperCase();
+      dismissAuthOverlay();
+    } else {
+      document.getElementById('loginError').textContent = d.error;
+    }
+  } catch(e) { document.getElementById('loginError').textContent = 'Server error — is the app running?'; }
+}
+
+async function doSignup() {
+  const display_name = document.getElementById('signupName').value.trim();
+  const username     = document.getElementById('signupUser').value.trim().toLowerCase();
+  const password     = document.getElementById('signupPass').value;
+  document.getElementById('signupError').textContent = '';
+  if (!display_name || !username || !password) { document.getElementById('signupError').textContent = 'Fill in all fields'; return; }
+  try {
+    const r = await fetch('/auth/signup', {method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({username, password, display_name})});
+    const d = await r.json();
+    if (d.ok) {
+      activeUser = d.user_id;
+      document.getElementById('sidebarName').textContent = d.display_name;
+      document.getElementById('sidebarAvatar').textContent = d.display_name[0].toUpperCase();
+      dismissAuthOverlay();
+      showToast('Welcome!', 'Account created. Start your first session to begin tracking.', 'success');
+    } else {
+      document.getElementById('signupError').textContent = d.error;
+    }
+  } catch(e) { document.getElementById('signupError').textContent = 'Server error'; }
+}
+
+function skipAuth() {
+  activeUser = 'default';
+  dismissAuthOverlay();
+}
+
+function dismissAuthOverlay() {
+  document.getElementById('authOverlay').style.display = 'none';
+  loadProfiles();
+}
+
+// Add logout button to sidebar footer
+document.addEventListener('DOMContentLoaded', () => {
+  const footer = document.querySelector('.sidebar-footer');
+  if (footer) {
+    const logoutBtn = document.createElement('button');
+    logoutBtn.className = 'btn btn-o btn-sm';
+    logoutBtn.style.cssText = 'width:100%;margin-top:6px;justify-content:center';
+    logoutBtn.textContent = '↩ Log Out';
+    logoutBtn.onclick = async () => {
+      await fetch('/auth/logout', {method:'POST'});
+      location.reload();
+    };
+    footer.appendChild(logoutBtn);
+  }
+});
+
+// On page load check if already logged in (session cookie)
+(async function checkAuth() {
+  try {
+    const r = await fetch('/auth/me');
+    const d = await r.json();
+    if (d.logged_in) {
+      activeUser = d.user_id;
+      document.getElementById('sidebarName').textContent = d.display_name;
+      document.getElementById('sidebarAvatar').textContent = d.display_name[0].toUpperCase();
+      document.getElementById('authOverlay').style.display = 'none';
+    }
+    // If not logged in, overlay stays visible
+  } catch(e) {
+    // Server not available — skip auth for demo mode
+    document.getElementById('authOverlay').style.display = 'none';
+  }
+})();
+
 </script>
+
+<!-- ══ LOGIN / SIGNUP OVERLAY ══════════════════════════════════════════ -->
+<div id="authOverlay" style="position:fixed;inset:0;background:var(--bg);z-index:9999;
+  display:flex;align-items:center;justify-content:center;">
+  <div style="width:100%;max-width:400px;padding:24px">
+
+    <!-- Logo -->
+    <div style="text-align:center;margin-bottom:28px">
+      <div style="font-size:2.5rem;margin-bottom:8px">&#129470;</div>
+      <h1 style="font-size:1.6rem;font-weight:800;color:var(--accent);letter-spacing:-.02em">PostureGuard AI</h1>
+      <p style="font-size:.75rem;color:var(--muted);font-family:'Space Mono',monospace;margin-top:4px">Real-time ergonomic coach</p>
+    </div>
+
+    <!-- Tabs -->
+    <div style="display:flex;border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:20px">
+      <button id="tabLogin" onclick="authTab('login')"
+        style="flex:1;padding:10px;font-family:'Syne',sans-serif;font-size:.82rem;font-weight:700;
+        border:none;cursor:pointer;background:var(--accent);color:#000;transition:all .2s">
+        Log In
+      </button>
+      <button id="tabSignup" onclick="authTab('signup')"
+        style="flex:1;padding:10px;font-family:'Syne',sans-serif;font-size:.82rem;font-weight:700;
+        border:none;cursor:pointer;background:transparent;color:var(--muted);transition:all .2s">
+        Sign Up
+      </button>
+    </div>
+
+    <!-- Login form -->
+    <div id="loginForm">
+      <div class="form-row">
+        <label class="form-label">Username</label>
+        <input class="form-input" id="loginUser" placeholder="your username" autocomplete="username">
+      </div>
+      <div class="form-row">
+        <label class="form-label">Password</label>
+        <input class="form-input" id="loginPass" type="password" placeholder="••••••••" autocomplete="current-password">
+      </div>
+      <div id="loginError" style="font-size:.72rem;color:var(--bad);margin-bottom:10px;min-height:18px"></div>
+      <button class="btn btn-p" style="width:100%;justify-content:center" onclick="doLogin()">Log In &#8594;</button>
+      <div style="text-align:center;margin-top:12px">
+        <button onclick="skipAuth()" style="background:none;border:none;color:var(--muted);
+          font-size:.7rem;cursor:pointer;font-family:'Space Mono',monospace;text-decoration:underline">
+          Continue as guest (no account)
+        </button>
+      </div>
+    </div>
+
+    <!-- Signup form -->
+    <div id="signupForm" style="display:none">
+      <div class="form-row">
+        <label class="form-label">Display Name</label>
+        <input class="form-input" id="signupName" placeholder="e.g. Alex">
+      </div>
+      <div class="form-row">
+        <label class="form-label">Username</label>
+        <input class="form-input" id="signupUser" placeholder="lowercase, no spaces" autocomplete="username">
+      </div>
+      <div class="form-row">
+        <label class="form-label">Password (min 6 chars)</label>
+        <input class="form-input" id="signupPass" type="password" placeholder="••••••••" autocomplete="new-password">
+      </div>
+      <div id="signupError" style="font-size:.72rem;color:var(--bad);margin-bottom:10px;min-height:18px"></div>
+      <button class="btn btn-p" style="width:100%;justify-content:center" onclick="doSignup()">Create Account &#8594;</button>
+    </div>
+
+  </div>
+</div>
+
 </body>
 </html>

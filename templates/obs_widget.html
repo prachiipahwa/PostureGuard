@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>PostureGuard OBS Widget</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background: transparent !important; overflow: hidden; width: 220px; height: 100px; font-family: 'Segoe UI', sans-serif; }
+
+  .widget {
+    display: flex; align-items: center; gap: 12px;
+    background: rgba(6,10,14,0.82);
+    border: 1px solid rgba(0,229,176,0.25);
+    border-radius: 12px;
+    padding: 12px 16px;
+    width: 220px;
+    backdrop-filter: blur(8px);
+    transition: border-color 0.4s;
+  }
+  .widget.good   { border-color: rgba(0,229,176,0.5); }
+  .widget.medium { border-color: rgba(255,176,32,0.5); }
+  .widget.bad    { border-color: rgba(255,60,92,0.5); }
+
+  .ring { position:relative; width:52px; height:52px; flex-shrink:0; }
+  .ring svg { width:100%; height:100%; transform:rotate(-90deg); }
+  .ring-num {
+    position:absolute; inset:0;
+    display:flex; flex-direction:column;
+    align-items:center; justify-content:center;
+    font-size:14px; font-weight:700; color:#ddeeff; line-height:1;
+  }
+  .ring-num small { font-size:7px; color:#4a6a86; letter-spacing:0.05em; text-transform:uppercase; margin-top:1px; }
+
+  .info { flex:1; min-width:0; }
+  .pg-label { font-size:9px; color:#4a6a86; letter-spacing:0.1em; text-transform:uppercase; margin-bottom:3px; }
+  .status { font-size:12px; font-weight:600; color:#00e5b0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .streak { font-size:9px; color:#4a6a86; margin-top:2px; font-family: 'Courier New', monospace; }
+
+  .alert-bar {
+    position: absolute; bottom: -28px; left:0; right:0;
+    background: rgba(255,60,92,0.9);
+    border-radius: 0 0 10px 10px;
+    padding: 4px 10px;
+    font-size: 9px; color: #fff;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    opacity: 0; transition: opacity 0.3s;
+  }
+  .alert-bar.show { opacity: 1; }
+  .outer { position: relative; }
+
+  @keyframes pulseRed { 0%,100%{opacity:1} 50%{opacity:0.6} }
+  .bad .ring svg circle:last-child { animation: pulseRed 1s infinite; }
+</style>
+</head>
+<body>
+<div class="outer">
+  <div class="widget" id="widget">
+    <div class="ring">
+      <svg viewBox="0 0 52 52">
+        <circle cx="26" cy="26" r="20" fill="none" stroke="#1a2b3c" stroke-width="4"/>
+        <circle id="arc" cx="26" cy="26" r="20" fill="none" stroke="#00e5b0" stroke-width="4"
+                stroke-linecap="round" stroke-dasharray="125.6" stroke-dashoffset="125.6"
+                style="transition:stroke-dashoffset .5s ease,stroke .5s"/>
+      </svg>
+      <div class="ring-num"><span id="scoreNum">--</span><small>score</small></div>
+    </div>
+    <div class="info">
+      <div class="pg-label">PostureGuard</div>
+      <div class="status" id="statusLabel">Connecting...</div>
+      <div class="streak" id="streakInfo">—</div>
+    </div>
+  </div>
+  <div class="alert-bar" id="alertBar"></div>
+</div>
+
+<script>
+let smooth = 80;
+let alertTimer = null;
+
+function scoreColor(s) {
+  return s >= 85 ? '#00e5b0' : s >= 65 ? '#ffb020' : '#ff3c5c';
+}
+
+function updateRing(score) {
+  const circ = 125.6;
+  const offset = circ - (score / 100) * circ;
+  const arc = document.getElementById('arc');
+  arc.style.strokeDashoffset = offset;
+  arc.style.stroke = scoreColor(score);
+  document.getElementById('scoreNum').textContent = Math.round(score);
+  document.getElementById('scoreNum').style.color = scoreColor(score);
+
+  const w = document.getElementById('widget');
+  w.className = 'widget ' + (score >= 85 ? 'good' : score >= 65 ? 'medium' : 'bad');
+  document.getElementById('statusLabel').textContent =
+    score >= 85 ? 'Good posture' : score >= 65 ? 'Needs attention' : 'Poor posture!';
+  document.getElementById('statusLabel').style.color = scoreColor(score);
+}
+
+async function poll() {
+  try {
+    const r = await fetch('/api/alerts/poll');
+    const d = await r.json();
+    if (d.alert) showAlert(d.alert.message);
+    const streak = d.streak_seconds;
+    if (streak > 0) {
+      document.getElementById('streakInfo').textContent = `Bad posture: ${streak}s`;
+    } else {
+      const brk = d.next_break_in;
+      document.getElementById('streakInfo').textContent =
+        brk > 0 ? `Break in ${Math.floor(brk/60)}m` : 'Break time!';
+    }
+  } catch {}
+  setTimeout(poll, 5000);
+}
+
+function showAlert(msg) {
+  const bar = document.getElementById('alertBar');
+  bar.textContent = msg;
+  bar.classList.add('show');
+  clearTimeout(alertTimer);
+  alertTimer = setTimeout(() => bar.classList.remove('show'), 6000);
+}
+
+// Listen for score updates via localStorage (set by main window)
+window.addEventListener('storage', e => {
+  if (e.key === 'pg_score') {
+    const s = parseFloat(e.newValue);
+    if (!isNaN(s)) { smooth = 0.7*smooth + 0.3*s; updateRing(smooth); }
+  }
+  if (e.key === 'pg_alert' && e.newValue) {
+    showAlert(e.newValue);
+    localStorage.removeItem('pg_alert');
+  }
+});
+
+// Also poll API directly
+async function pollScore() {
+  try {
+    const r = await fetch('/api/session');
+    const d = await r.json();
+    if (d.current_score != null) { smooth = 0.7*smooth + 0.3*d.current_score; updateRing(smooth); }
+  } catch {}
+  setTimeout(pollScore, 2000);
+}
+
+updateRing(80);
+poll();
+pollScore();
+</script>
+</body>
+</html>
