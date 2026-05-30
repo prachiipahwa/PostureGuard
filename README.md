@@ -1,5 +1,6 @@
 # 🦾 PostureGuard AI
 
+<<<<<<< HEAD
 > **Real-time posture analysis and ergonomic coaching powered by computer vision**
 
 PostureGuard AI uses your webcam and Google's **MediaPipe Pose** model to analyze your sitting (or standing) posture in real time. It detects biomechanical issues, scores your posture 0–100, gives live AI coaching tips, tracks your progress over weeks, and lets you compete with friends — all running locally with no cloud dependency except the optional Anthropic AI features.
@@ -18,6 +19,11 @@ PostureGuard AI uses your webcam and Google's **MediaPipe Pose** model to analyz
 - [The Profile System — Design Decisions](#the-profile-system--design-decisions)
 - [Frequently Asked Questions](#frequently-asked-questions)
 - [Roadmap](#roadmap)
+=======
+**Computer Vision Capstone Project**  
+Domain: Healthcare & Workplace Wellness  
+Tech: MediaPipe Pose · OpenCV · Flask · Python
+>>>>>>> 7b9dbed3ce11faa9409e73cae84bb4a13bd0761a
 
 ---
 
@@ -35,8 +41,16 @@ PostureGuard tracks **4 biomechanical posture metrics** in real time from your w
 These are combined into a **smooth 0–100 posture score** (EMA-filtered so it doesn't flicker) with color coding: green (≥85), amber (65–84), red (<65).
 
 ---
+## Live Demo
 
+<<<<<<< HEAD
 ## Feature Breakdown
+=======
+[Click to watch](./demo.mp4)
+
+---
+## Quick Start
+>>>>>>> 7b9dbed3ce11faa9409e73cae84bb4a13bd0761a
 
 ### 1. Live Posture Analysis
 **What it does:** Real-time skeleton overlay on your webcam feed. Score ring, metric bars, and issue cards update at ~10fps. Works with any standard webcam.
